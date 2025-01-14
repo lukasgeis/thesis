@@ -1,0 +1,11 @@
+\begin{tikzpicture}
+    \node[vertex] (a) at (0,0) {$1$};
+    \node[vertex] (b) at (2,2) {$2$};
+    \node[vertex] (c) at (4,0) {$3$};
+
+    \edge{a}{b}{$0.5$}{}{bend left};
+    \edge{b}{c}{$1$}{}{bend left};
+    \edge{c}{b}{$0.5$}{}{bend left};
+    \edge{c}{a}{$0.5$}{}{};
+    \path[edge, loop left] (a) to node {$0.5$} (a);
+\end{tikzpicture}

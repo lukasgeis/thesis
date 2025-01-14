@@ -1,0 +1,119 @@
+{
+    \def\dx{2.8em}
+    \def\dy{2.8em}
+    \def\scale{0.85}
+
+    \def\potnode#1#2#3#4{
+        \edef\col{\ifcsdef{pot#1}{GoetheBlue}{Black}}
+        \edef\fill{\ifcsdef{pot#1}{White!90!\col}{White}}
+            \edef\potlabel{\ifcsdef{pot#1}{$\phi{=}{\csuse{pot#1}}$}{}}
+
+        \node[vertex, fill=\fill, draw=Black!50!\col, label=above:{\footnotesize\color{Black!50!\col} \potlabel}] (#1) at (#3 * \dx, #4 * \dy) {$v_{#2}$};
+    }
+
+    \def\potedge#1#2#3#4#5{
+        \edef\potsource{\ifcsdef{pot#1}{\csuse{pot#1}}{0}}
+        \edef\pottarget{\ifcsdef{pot#2}{\csuse{pot#2}}{0}}
+        \numdef\wphi{#3 + \pottarget - \potsource}
+        
+        \edef\broken{\ifnumcomp{\wphi}{<}{0}{broken}{}}
+        \ifthenelse{\equal{#4}{rev}}{
+            \edef\traversed{\ifcsdef{pot#2}{traversed}{}}
+        }{
+            \edef\traversed{\ifcsdef{pot#1}{traversed}{}}
+        }
+
+        \edef\repaired{\ifnumcomp{#3}{<}{0}{\ifnumcomp{\wphi}{<}{0}{}{repaired}}{}}
+        
+        \path[edge, \traversed, \broken, \repaired, #5] (#1) to node[align=center, sloped] {$#3$ \\ $\wphi$} (#2);
+    }
+
+    \def\borderedge#1#2#3#4{
+        \edef\pot{\ifcsdef{pot#1}{\csuse{pot#1}}{0}}
+        \edef\traversed{\ifcsdef{pot#1}{traversed}{}}
+        \ifthenelse{\equal{#2}{rev}}{
+            \numdef\wphi{#4 + \pot}
+            \draw[thick, ->, dotted, opacity=0.5, \traversed] let \p1 = (#1) in (\x1 - #3 * \dx,\y1) to node[align=center, sloped] {\small $#4$ \\\small \ifnumcomp{\wphi}{=}{0}{}{$\wphi$}} (#1);
+        }{
+            \numdef\wphi{#4 - \pot}
+            \draw[thick, ->, dotted, opacity=0.5, \traversed] let \p1 = (#1) in (#1) to node[align=center, sloped] {\small $#4$ \\\small \ifnumcomp{\wphi}{=}{0}{}{$\wphi$}} ++(#3 * \dx,0);
+        }
+    }
+
+    \def\potgraph{
+        \foreach \name/\x/\y [count=\i] in {a/0/4, b/0/2.5, c/0/1.5, d/2/4, e/2/2, f/2/0, g/4/2, h/6/2, i/8/3, j/8/1, k/10/3, l/10/1, m/10/0, n/12/4, o/12/3, p/12/2, q/12/0} {
+            \potnode{\name}{\i}{\x}{\y};
+        } 
+
+        \potedge{a}{d}{2}{rev}{};
+        \potedge{b}{e}{1}{rev}{bend left};
+        \potedge{c}{e}{2}{rev}{bend right};
+        \potedge{d}{g}{2}{rev}{};
+        \potedge{e}{g}{1}{rev}{};
+        \potedge{f}{g}{1}{rev}{};
+        \potedge{g}{h}{-5}{}{};
+        \potedge{h}{i}{2}{}{};
+        \potedge{h}{j}{3}{}{};
+        \potedge{i}{k}{1}{}{};
+        \potedge{j}{l}{2}{}{};
+        \potedge{j}{m}{1}{}{bend right};
+        \potedge{k}{n}{3}{}{bend left};
+        \potedge{k}{o}{1}{}{};
+        \potedge{k}{p}{1}{}{bend right};
+        \potedge{m}{q}{1}{}{};
+
+        \borderedge{a}{rev}{1.2}{};
+        \borderedge{b}{rev}{1.2}{};
+        \borderedge{c}{rev}{1.2}{};
+        \borderedge{f}{rev}{3.2}{2};
+        \borderedge{n}{}{1.2}{};
+        \borderedge{o}{}{1.2}{3};
+        \borderedge{p}{}{1.2}{2};
+        \borderedge{q}{}{1.2}{};
+        \borderedge{l}{}{3.2}{};
+    }
+
+    \begin{center}
+        \scalebox{\scale}{
+            \begin{tikzpicture}
+                \potgraph        
+            \end{tikzpicture}
+        }
+        \bigskip \\
+        {
+        Solution (1) (as with \algdk): only increase $\phi(v_8) + 5$. This causes many cascading updates: \\
+        }
+        \smallskip 
+        \scalebox{\scale}{
+            \begin{tikzpicture}
+                \def\poth{5};
+                \def\poti{3};
+                \def\potj{2};
+                \def\potk{2};
+                \def\potm{1};
+                \def\poto{1};
+                \def\potp{1};
+            
+                \potgraph        
+            \end{tikzpicture}
+        }
+        \bigskip \\
+        {
+        Solution (3) (as with \algbd): split update to $\phi(v_7) - 2$ and $\phi(v_8) + 3$. This causes fewer cascading updates: \\
+        }
+        \smallskip 
+        \scalebox{\scale}{
+            \begin{tikzpicture}
+
+                \def\pote{-1};
+                \def\potf{-1};
+                \def\potg{-2};
+                
+                \def\poth{3};
+                \def\poti{1};
+            
+                \potgraph        
+            \end{tikzpicture}
+        }
+    \end{center}
+}

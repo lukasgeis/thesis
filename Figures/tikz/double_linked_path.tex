@@ -1,0 +1,13 @@
+\begin{tikzpicture}
+    \node[vertex] (a) at (0,0) {$v_1$};
+    \node[vertex] (b) at (2,0) {$v_2$};
+    \node[vertex] (c) at (4,0) {$v_3$};
+    \node[vertex] (d) at (6,0) {$v_4$};
+
+    \edge{a}{b}{}{}{bend left};
+    \edge{b}{a}{}{}{bend left};
+    \edge{b}{c}{}{}{bend left};
+    \edge{c}{b}{}{}{bend left};
+    \edge{c}{d}{}{}{bend left};
+    \edge{d}{c}{}{}{bend left};
+\end{tikzpicture}

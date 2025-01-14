@@ -1,0 +1,206 @@
+%%% Common Definitions
+
+% Ordinals
+\def\st{\textsuperscript{\textup{st}}\xspace}
+\def\nd{\textsuperscript{\textup{nd}}\xspace}
+\def\rd{\textsuperscript{\textup{rd}}\xspace}
+\def\th{\textsuperscript{\textup{th}}\xspace}
+
+
+% Hide Text 
+\def\hide#1{}
+\def\mask#1#2{#1}
+
+
+% Citation
+\def\citeneeded{\textsuperscript{\textcolor{red}{[cite]}}\xspace}
+\def\boxcite#1{\mbox{\cite{#1}}}
+
+% Quotation Marks 
+\def\qq#1{``#1''\xspace}
+
+
+% Abbreviations
+\def\Wlog      {\text{W.l.o.g.}\xspace}
+\def\wrt       {\text{w.\,r.\,t.}\xspace}
+\def\etal      {\text{et~al.}\xspace}
+\def\eg        {\text{e.g.}\xspace}
+\def\cf        {\text{cf.}\xspace}
+\def\ie        {\text{i.e.}\xspace}
+
+
+% Remap epsilon
+\let\epsilon\varepsilon
+
+
+% Landau-Notation
+\def\symOh{\ensuremath{\mathcal O}}
+\def\symoh{\ensuremath{o}}
+\def\symOm{\ensuremath{\Omega}}
+\def\symom{\ensuremath{\omega}}
+\def\symTh{\ensuremath{\Theta}}
+\def\symOt{\ensuremath{\widetilde{\mathcal O}}}
+
+\def\Oh#1{\ensuremath{\symOh\!\left(#1\right)}}
+\def\oh#1{\ensuremath{\symoh\!\left(#1\right)}}
+\def\Om#1{\ensuremath{\symOm\!\left(#1\right)}}
+\def\om#1{\ensuremath{\symom\!\left(#1\right)}}
+\def\Th#1{\ensuremath{\symTh\!\left(#1\right)}}
+\def\Ot#1{\ensuremath{\symOt\!\left(#1\right)}}
+
+
+% Set Theory
+\def\set#1{\ensuremath{\left\{#1\right\}}\xspace}
+\def\setc#1#2{\ensuremath{\set{#1 \mid #2}}\xspace}
+\def\sN{\ensuremath{\mathbb N}\xspace}
+\def\sNpos{\ensuremath{\mathbb{N}_{>0}}\xspace}
+\def\sZ{\ensuremath{\mathbb Z}\xspace}
+\def\sR{\ensuremath{\mathbb R}\xspace}
+\def\sRpos{\ensuremath{\mathbb{R}^+}\xspace}
+\def\NP{\ensuremath{\mathcal{NP}}\xspace}
+
+
+
+% Probabilities
+\def\symProb{\ensuremath{\mathbb P}}
+\def\symExpv{\ensuremath{\mathbb E}}
+\def\prob#1{\ensuremath{\symProb\!\left[#1\right]}}
+\def\expv#1{\ensuremath{\symExpv\!\left[#1\right]}}
+\def\varv#1{\ensuremath{\operatorname{Var}\!\left[#1\right]}}
+\def\unif{\ensuremath{\mathcal U}\xspace}
+\def\whp{whp.\xspace}
+\def\follows{\sim}
+
+
+% Math Operators
+\DeclareMathOperator{\poly}{poly}
+\DeclareMathOperator{\polylog}{poly\,log}
+\DeclareMathOperator{\acosh}{acosh}
+\DeclareMathOperator{\asinh}{asinh}
+\DeclareMathOperator{\asin}{asin}
+\DeclareMathOperator{\acos}{acos}
+\DeclareMathOperator{\avg}{avg}
+\DeclareMathOperator{\Gap}{Gap}
+
+% Math Functions
+\def\floor#1{\ensuremath{\left\lfloor #1\right\rfloor}}
+\def\ceil#1{\ensuremath{\left\lceil #1\right\rceil}}
+\def\abs#1{\ensuremath{\left\lvert #1\right\rvert}}
+\def\lb{\ensuremath{\log_2}}
+\def\inv#1{\ensuremath{\left(#1\right)^{-1}}}
+\def\norm#1{\ensuremath{\left\lVert#1\right\rVert}}
+
+% Definition
+\def\Def{\ensuremath{\coloneqq}}
+
+
+% (In-)Equalities with Spacing
+\def\sgeq{\,\,\geq\,\,}
+\def\sleq{\,\,\leq\,\,}
+\def\speq{\,\,=\,\,}
+
+
+% Sequences
+\def\seq#1#2#3{\ensuremath{[\,#1\,]_{#2}^{#3}}}
+
+
+% Paths
+\def\direct#1#2{\ensuremath{#1 \rightarrow #2}\xspace}
+\def\path#1#2{\direct{#1}{#2}\text{path}\xspace}
+\def\paths#1#2{\direct{#1}{#2}\text{paths}\xspace}
+
+
+% Node Degrees
+\def\deg{\ensuremath{\mathrm{deg}}\xspace}
+\def\degout{\ensuremath{\mathrm{deg_{out}}}\xspace}
+\def\degin{\ensuremath{\mathrm{deg_{in}}}\xspace}
+\def\degmax{\ensuremath{\mathrm{maxdeg}}\xspace}
+\def\degavg{\ensuremath{\overline{d}}\xspace}
+
+
+% Graph Metrics
+\def\diam{\ensuremath{\mathrm{diam}}\xspace}
+\def\dist{\ensuremath{\mathrm{dist}}\xspace}
+
+
+% Algorithm Metrics
+\def\rtime{\ensuremath{\mathcal{T}}\xspace}
+\def\work{\ensuremath{W}\xspace}
+\def\speedup{\ensuremath{S}\xspace}
+
+
+
+%%% Specific Definitions
+
+% Algorithms
+\def\algdk{\textsc{Dijkstra}\xspace}
+\def\algbd{\textsc{BiDijkstra}\xspace}
+\def\algbf{\textsc{BellmanFord}\xspace}
+\def\algjs{\textsc{Johnson}\xspace}
+\def\algdt{\textsc{$\Delta$-Stepping}\xspace}
+\def\algen{\textsc{ElimNeg}\xspace}
+\def\algsl{\textsc{Sampler}\xspace}
+\def\algsp{\textsc{SamplerPot}\xspace}
+\def\algbp{\textsc{BiSamplerPot}\xspace}
+\def\algbt{\textsc{Batching}\xspace}
+\def\algns{\textsc{NodeSampler}\xspace}
+\def\bfs{\textsc{Bfs}\xspace}
+\def\dfs{\textsc{Dfs}\xspace}
+
+
+% Algorithm Returns
+\def\negcycle{\textsc{HasNegativeCycle}\xspace}
+\def\shorterpath{\textsc{ShorterPathFound}\xspace}
+
+
+% Potentials
+\def\pot{\ensuremath{\phi}\xspace}
+\def\delpot{\ensuremath{\Delta\pot}\xspace}
+
+
+% Weight Functions
+\def\wpot{\ensuremath{w_{\pot}}\xspace}
+\def\wmax{\ensuremath{w_{max}}\xspace}
+\def\wzero{\ensuremath{w_{zero}}\xspace}
+\def\wunif{\ensuremath{w_{unif}}\xspace}
+\def\wpos{\ensuremath{\wInt_+}\xspace}
+\def\weightUp#1#2{\ensuremath{w_{#1 \gets #2}}\xspace}
+\def\wInt{\ensuremath{\mathcal W}\xspace}
+
+
+% Problems
+\def\sssp{\textsc{SingleSourceShortestPath}\xspace}
+\def\apsp{\textsc{AllPairShortestPath}\xspace}
+
+
+% Shortest Path Trees
+\def\spt{\textsc{Spt}\xspace}
+\def\pspt#1{\ensuremath{\textsc{Spt}_{#1}}\xspace}
+
+
+% Broken Edges
+\def\broken{\ensuremath{\mathcal{B}}\xspace}
+\def\brokuv{\ensuremath{\broken_{uv}}\xspace}
+
+
+% Markov Chains
+\def\markov{\textsc{MarkovChain}\xspace}
+\def\markovs{\textsc{MarkovChains}\xspace}
+\def\states{\ensuremath{\mathcal{S}}\xspace}
+\def\steps{\ensuremath{\tau}\xspace}
+\def\mixtime{\ensuremath{\tau_{\epsilon}}\xspace}
+\def\constates{\ensuremath{\mathbb{S}_{G, \wInt}}\xspace}
+\def\consdistr{\ensuremath{\mathcal{S}_{G, \wInt}}\xspace}
+\def\cstates{\ensuremath{\mathbb S}\xspace}
+
+
+% Graph Generators
+\def\mcal#1{\ensuremath{\mathcal{#1}}\xspace}
+\def\gnp{\mcal{GNP}}
+\def\rhg{\mcal{RHG}}
+\def\dsf{\mcal{DSF}}
+\def\road{\mcal{ROAD}}
+\def\gn{\ensuremath{\mcal{G}(n)}\xspace}
+\def\Gnp{\ensuremath{\mcal{G}(n, p)}\xspace}
+\def\Gnm{\ensuremath{\mcal{G}(n, m)}\xspace}
+

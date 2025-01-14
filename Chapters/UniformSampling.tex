@@ -1,0 +1,567 @@
+\chapter{Uniform Edge Weight Sampling}\label{sec:uniform_sampling}
+
+In this chapter, we study the problem of sampling a consistent weight function $w$ for a given graph $G$.
+We aim for a uniform model of all weight functions that have weights in a defined interval $\wInt$ and do not introduce negative cycles:
+
+\begin{definition}
+  For a given graph $G = (V, E)$ and set of possible weights~$\wInt$, the set of all consistent edge weights \constates is defined as \[
+    \constates = \setc{w}{w\colon E \rightarrow \wInt \land \text{$(G, w)$ are consistent}}.
+  \]
+  Then, \consdistr is the uniform distribution over \constates.
+\end{definition}
+
+\noindent For the remainder of the chapter, we again fix $G$ and $\wInt$ and write $\states = \consdistr$ and $\cstates = \constates$ as shorthands.
+Our goal then is to sample a uniform weight function $w \follows \states$.
+
+\begin{observation}\label{obs:trivial_sampling}
+  If $G$ is acyclic or $\wInt \subseteq \sRpos$, then $\cstates = \wInt^m$ and every $w\colon E \rightarrow \wInt$ is consistent with $G$.
+  If $G$ contains at least one cycle and $\wInt \cap \sRpos = \emptyset$ (as well as $\wInt \neq \emptyset$), then $\cstates = \emptyset$.
+\end{observation}
+
+\noindent \Cref{obs:trivial_sampling} makes the problem trivial for certain parameters.
+Thus, we first restrict ourselves to $\wInt$ that contains negative and positive weights.\footnote{
+  Typically, we have $\wInt = [a..b]$ for some $a < 0 < b$.
+}
+Second, we restrict ourselves to strongly connected $G$.
+This is justified by the following lemma.
+
+\begin{lemma}\label{lem:scc_dependent_weights}
+  For graph $G$, let $V_1, \ldots, V_s$ denote its SCCs and $G[V_i]$ the induced subgraph of $V_i$.
+  Then, \begin{itemize}
+    \item every edge $(u, v) \in E$ with $u \in V_i, v \in V_j$ and $i \neq j$ can have arbitrary weights.
+    \item for $i \neq j$, edge weights in $G[V_i]$ are independent of edge weights in $G[V_j]$.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  By definition of SCCs, every node that lies on the same cycle is part of the same SCC.
+  Thus, edge weights of edges $(u_1, v_1), (u_2, v_2)$ are only dependent on each other if $u_1, u_2, v_1, v_2 \in V_i$ for some $i \in [s]$.
+  The first claim directly follows as edges in between two different SCCs are on no cycle and can hence not be part of a negative cycle.
+\end{proof}
+
+\noindent \Cref{lem:scc_dependent_weights} implies that to sample from $\consdistr$, it suffices to split $G$ into its SCCs $V_1, \ldots, V_s$ in linear time~\cite{DBLP:journals/siamcomp/Tarjan72}, sample from $\states_{G[V_i],\wInt}$ for every $i \in [s]$ and assign uniform weights from $\wInt$ to every edge not present in any SCC.
+Thus, any efficient sampling algorithm on strongly connected components directly translates into an efficient sampling algorithm for general graphs.
+
+\section{Hardness}\label{sec:hardness}
+
+\begin{figure}[t]
+  \centering
+  \input{Figures/tikz/double_linked_path}
+  \caption{
+    A double linked path of length $4$.
+  }
+  \label{fig:double_linked_path}
+\end{figure}
+
+Before discussing our algorithm, we first show that the problem is not trivial. 
+
+\paragraph{Rejection Sampling.}
+The simplest approach might be to just draw a uniform weight function from $\wInt^m$ and reject if $w$ contains a negative cycle.
+While we can check for a negative cycle using \algbf in polynomial time \Oh{nm}, the probability of drawing a consistent $w$ might be exponentially small.
+For instance, consider a double linked path $D_k = (V_k, E_k)$, defined by \[
+  V_k = \setc{v_i}{i \in [k]}, \quad E_k = \setc{(v_i, v_j)}{i,j \in [k],\,\, \abs{i - j} = 1}.
+\]
+An example with $k = 4$ can be seen in \cref{fig:double_linked_path}.
+
+\begin{observation}
+  $(D_k, w)$ are consistent iff for every $i \in [k - 1]$, we have \[ w(v_i, v_{i + 1}) + w(v_{i + 1}, v_i) \geq 0. \]  
+\end{observation}
+
+\noindent Now consider $\wInt = \set{-1, 0, 1}$.
+Then, every pair of edges $(v_i, v_{i + 1}), (v_{i + 1}, v_i)$ has $|\wInt|^2 = 9$ possible weight assignments from which $6$ do not introduce a negative cycle, \ie sum to a non-negative weight.
+
+Hence, if we draw $w$ uniformly from $\wInt^{2(k - 1)}$, the probability of having no negative cycle is given by \[
+  \left(\frac{6}{9}\right)^{k - 1}.
+\]
+Therefore, following a geometric distribution, we expect to draw \Th{1.5^k} times in order to generate a consistent $w$ which is far from efficient.
+
+
+\paragraph{\NP-hard Distributions.}
+While in the previous example, it is quite easy to compute the distribution of \states, in general, properties of weight functions in \states can be non-trivial.
+A natural example is the probability of having a certain number of negative edges:
+
+\begin{definition}[\textsc{$k$-NegEdges}]
+  In the \textsc{$k$-NegEdges}, we have to decide if for graph $G$ and weights $\wInt$, there exists $w \in \constates$ such that $w$ has $k$ negative edges.
+\end{definition}
+
+\noindent Unfortunately, we can show that this problem is in fact \NP-hard by a reduction from the \textsc{DirectedFeedbackArcSet} problem~\cite{DBLP:conf/coco/Karp72}.
+\begin{definition}[DFAS~\cite{DBLP:conf/coco/Karp72}]
+  The \NP-hard \textsc{DirectedFeedbackArcSet} problem (DFAS) asks whether for graph $G$ it suffices to remove $k$ edges from $G$ to make $G$ acyclic.
+\end{definition}
+
+\begin{theorem}  
+  \textsc{$k$-NegEdges} is \NP-hard.
+\end{theorem}
+\begin{proof}
+  We show that \[
+    (G, k) \in \text{DFAS}\quad\Longleftrightarrow\quad(G, \wInt, m - k) \in \textsc{$k$-NegEdges}.
+  \] with $\wInt$ such that there are $a, b \in \wInt$ with $a < 0 < b$ and $b \geq (\mcal{C} - 1) \cdot (-a)$ where $\mcal{C}$ is the length of the longest simple cycle in $G$.
+  We do this by interpreting \emph{deleted} edges in DFAS as edges with positive weight in \textsc{$k$-NegEdges}.
+
+  \underline{$\Longleftarrow$}:
+  Observe that if all edge weights are negative, $G$ must be acyclic (since otherwise trivially every cycle is negative).
+  Thus, if there are $m - k$ negative edges in $G$, removing the $k$ positive edges makes $G$ acyclic, proving \[
+    (G, \wInt, m - k) \in \textsc{$k$-NegEdges}\quad\Longrightarrow\quad(G, k) \in \text{DFAS}.
+  \] 
+
+  \underline{$\Longrightarrow$}:
+  For the other direction, assume there exists a subset of $k$ edges $S$ such that their removal makes $G$ acyclic.
+  Observe that if G is acyclic, all edges can be set to $a$. 
+  Otherwise, we have to introduce at least one positive edge for each cycle, \ie the edges in $S$.
+  Thus, assign $b$ to every edge in $S$ and $a$ to every other edge in $E \setminus S$.
+  Hence, the weight of any cycle $C$ in $G$ is at least \[
+    b + (|C| - 1) \cdot a \sgeq b + (\mcal{C} - 1) \cdot a \sgeq (\mcal{C} - 1) \cdot (-a) + (\mcal{C} - 1) \cdot a \speq 0
+  \] by definition of $a$ and $b$.
+  Thus, the weight function is consistent, completing the proof.
+\end{proof}
+
+
+\section{A uniform Sampler}
+\begin{algorithm}[!t]
+  \caption{
+    \algsl: an approximate $\consdistr$-Sampler~\cite{RNEW} 
+  }
+  \label{algo:sampler}
+
+  \KwInput{graph $G = (V, E)$, possible weights $\wInt$, number of steps $\steps$}
+  \KwOutput{consistent weight function $w\colon E \rightarrow \wInt$}
+
+  \BlankLine
+  $w \gets \text{arbitrary consistent weight function}$\;
+  \RepTimes{\steps}{
+    $e \follows \unif(E)$\label{line:draw_edge}\;
+    $c \follows \unif(\wInt)$\label{line:draw_weight}\;
+    $w' \gets \weightUp{e}{c}$\label{line:create_w_prime}\;
+    \If{$(G, w')$ are consistent \label{line:sampler_consistent}}{
+      $w \gets w'$\label{line:update_w}\;
+    }
+  }
+  \KwRet{$w$}\;
+\end{algorithm}
+
+The previous example and reduction suggest that, in general, uniform sampling from \states has to be a bit more involved.
+Thus, instead of a direct method, we propose a process that can sample approximately uniform from \states.
+
+The process can be seen in \cref{algo:sampler}.
+We denote a new weight function that differs from $w$ only in one edge weight $w(e) = c$ by $\weightUp{e}{c}$.
+The algorithm starts with an arbitrary (deterministic) consistent weight function $w$ and perturbs $w$ for a specified number of steps \steps.
+Following \cref{obs:trivial_sampling}, canonical choices for an arbitrary consistent weight function are \begin{itemize}
+  \item $\wzero = (0, \ldots, 0)$ (if $0 \in \wInt$),
+  \item $\wmax = (\max(\wInt), \ldots, \max(\wInt))$,
+  \item $\wunif = \unif(\wpos^m)$ where $\wpos$ are the non-negative weights in $\wInt$.
+\end{itemize}
+
+\noindent We perturb $w$ by drawing a uniform edge $e \follows \unif(E)$ and a uniform weight $w \follows \unif(\wInt)$ and updating $w$ if no negative cycles are created by doing so.
+To show that this method in fact approximates a uniform distribution over $\cstates$, we interpret the algorithm as a \markov over state space \cstates.
+
+Clearly, since we maintain the invariant in \cref{line:sampler_consistent} that $(G, w)$ are consistent, we have $w \in \cstates$ at any point in time.
+Furthermore, a weight update in \cref{line:update_w} can be interpreted as a state transition.
+
+\begin{definition}[Neighborhood]
+  For $w \in \cstates$, its neighborhood $N[w]$ consists of all weight functions that differ in at most one edge weight: \[
+    N[w] = \setc{w'}{\exists e \in E\,\,\exists c \in \wInt\colon w' = \weightUp{e}{c} \in \cstates}.
+  \] 
+\end{definition}
+
+\noindent Thus, we perturb $w$ by choosing a random neighbor in $N[w]$ and transitioning to it.
+Also, every neighbor is equally likely to be the next one:
+
+\begin{observation}\label{obs:edges_equally_weighted}
+  Let $w_1, w_2 \in \cstates$ with $w_2 \in N[w_1]$ and $w_1 \neq w_2$.
+  Then, we transition from $w_1$ to $w_2$ with probability \[
+    \frac{1}{|E|\cdot|\wInt|}.
+  \]
+\end{observation}
+
+\noindent Note that we have $w \in N[w]$ and that we can also draw a non-consistent $w'$ in \cref{line:draw_edge,line:draw_weight,line:create_w_prime} which leads to no change in this specific round.
+Thus, the probability of staying in state $w$ is at least the probability of transitioning to a specific neighbor $w' \in N[w], w' \neq w$.
+
+\begin{observation}\label{obs:neighborhood_symmetric}
+  Let $w_1, w_2 \in \cstates$.
+  Then, \[
+    w_1 \in N[w_2]\quad\Longleftrightarrow\quad w_2 \in N[w_1].
+  \]
+  Thus, if there is a path from some $w_i \in \cstates$ to some $w_j \in \cstates$, there also is one from $w_j$ to $w_i$ (the same one in reverse).
+\end{observation}
+
+\begin{observation}\label{obs:weight_increase_possible}
+  Let $w \in \cstates$ and $w' = \weightUp{e}{c}$ with $c \geq w(e)$.
+  Then, $w' \in N[w]$.
+\end{observation}
+
+\bigskip
+
+\noindent We can now prove that \cref{algo:sampler} in fact approximates \states.
+
+\begin{theorem}[\cite{RNEW}]\label{thm:sampler_is_uniform}
+  For $\steps \to \infty$, $w$ in \cref{algo:sampler} converges to \states.
+\end{theorem}
+\begin{proof}
+  The theorem follows if the underlying \markov is irreducible, aperiodic, and symmetric using \cref{lem:sym_mc_uniform}.
+  Aperiodicity follows from the previous observation that $w \in N[w]$ and \cref{obs:loop_implies_aperiodic}.
+  Symmetry follows from \cref{obs:edges_equally_weighted,obs:neighborhood_symmetric}.
+  For irreducibility, consider any two states $w$ and $w'$.
+  Due to \cref{obs:weight_increase_possible}, we know that both $w$ and $w'$ can reach $\wmax$ and following \cref{obs:neighborhood_symmetric}, there exist paths from $w$ to $w'$ and back.
+  Hence, every state can reach every other state concluding the proof.
+\end{proof}
+
+We prove a stronger version of this theorem in \cref{sec:general-convergence} for the case in which $\wInt$ consists of sets of possible weights that are uncountable.
+While we provide empirical evidence in \cref{sec:experiments} that this \markov is rapidly mixing, rigorous theoretical bounds are still an open question and thus not part of this thesis.
+However, we provide a proof in \cref{sec:additional_proofs} that for the simple $n$-cycle graph, the \markov is rapidly mixing for integer weights $\wInt = [a,b]$.
+
+
+\section{Fast Consistency Checks}
+Drawing a random edge $e \follows \unif(E)$ and weight $c \follows \unif(\wInt)$ in \cref{algo:sampler} can be trivially done in expected constant time~\cite{DBLP:journals/corr/lemire}.
+The only challenging part is the consistency check in \cref{line:sampler_consistent}.
+Thus, we have to determine if $w'$ induces a negative cycle.
+Fortunately, since we maintain the invariant that $w$ is consistent with $G$ throughout the algorithm, we only need to check whether the weight change of $w(e)$ introduces a new negative cycle.
+
+Following \cref{obs:weight_increase_possible}, a weight-increase in edge $e$ can not create a negative cycle and thus can be immediately accepted.
+If we decrease the weight of $e$, we need to check if $e$ is part of a negative cycle.
+Since $(G, w)$ are consistent, we know that the length $d_{G, w}(u, v) > -\infty$ of a shortest \path{u}{v} is finite for every pair of vertices $u, v \in V$.
+
+\begin{lemma}\label{lem:new_weight_in_cycle}
+  If we change the weight of edge $e = (u, v)$ to $w'(u, v)$, $e$ is part of a negative cycle iff \[
+    d_{G, w}(v, u) + w'(u, v) < 0.
+  \] 
+\end{lemma}
+\begin{proof}
+  If $(u, v)$ is part of a negative cycle with respect to $w'$, there must exist a simple cycle $C$ with $w'(C) < 0$ consisting of a simple \path{v}{u} $P$ and edge $(u, v)$.
+  Since only $w'(u, v)$ changed and $(G,w)$ were consistent, \ie every shortest \path{v}{u} is simple and does not traverse $(u,v)$ with respect to $w$, we have $w'(C) = w'(u, v) + w(P) = w'(u, v) + d_{G, w}(v, u) < 0$.
+\end{proof}
+
+\noindent Thus, to check for consistency of the weight change, we need to compute the length of a shortest \path{v}{u}.
+Using \algbf, we can do this in time \Oh{nm}\footnote{
+  Although no asymptotic improvement, since $(G, w)$ are consistent, we need no further amortized checks for negative cycles in the SPFA heuristic as we do not need to consider outgoing edges from $u$.
+}.
+
+This however is slow for bigger graphs.
+Utilizing \algdk instead of \algbf would significantly improve the performance of this algorithm.
+Since, in general, $G$ might already contain negative weights, it is not possible to directly substitute \algbf with \algdk.
+Instead, we use potential functions as in \algjs introduced in \cref{sec:johnson}.
+
+Following \cref{lem:shortest_paths_unchanged,lem:shortest_paths_are_feasible}, we know that there exists a feasible $\pot$ with respect to $w$. 
+Thus, shortest \paths{v}{u} with respect to $\wpot$ found with \algdk are also shortest \paths{v}{u} with respect to $w$ found with \algbf (although we have to account for the additional $\pot(u) - \pot(v)$ term).  
+Since we start with an arbitrary consistent weight function in \cref{algo:sampler}, we can either use the technique of \algjs or start with $\pot = 0$ if all weights are non-negative.\footnote{
+  Alternative algorithms for the first option are studied in detail in \cref{sec:pot_gen}.
+}
+Hence, in the following, we discuss the problem of maintaining a feasible potential function $\pot$ under dynamic edge weight updates.
+
+\smallskip
+
+For the rest of the section, $w$ thus refers to the \emph{current} consistent weight function and $\pot$ to its correspondent feasible potential function.
+We denote by $w' = \weightUp{(u, v)}{c}$ the new weight function which differs from $w$ only in edge $(u, v)$. 
+$\pot'$ refers to the updated version of $\pot$ that we get when updating $w$ to $w'$.
+Note that we still have to define $\pot'$ and prove its feasibility (if $w'$ does not induce a negative cycle).
+
+\bigskip
+
+\begin{figure}[t]
+  \centering
+  \input{Figures/tikz/partial_spt}
+  \caption{
+    A graph with no clear partial shortest path tree for source node $v_1$ and $\Delta = 2$.
+    $v_4$ should be part of $\pspt{2}(v_1)$ since $d(v_1, v_4) = 0$ --- $v_3$ however not since $d(v_1, v_3) = 3 > 2$ thus making $v_4$ unreachable from $v_1$.
+  }
+  \label{fig:partial_spt}
+\end{figure}
+
+As increasing the weight of an edge also increases its potential weight, we do not need to update $\pot$ under weight increases.
+Decreasing $w(u, v)$ however might \emph{break} the edge ($\wpot(u, v) < 0$) and necessitate an update of $\pot$ by increasing the gradient $\pot(v) - \pot(u)$.
+We have three solutions which we will discuss in order: \begin{itemize}
+  \item[(1)] Increasing $\pot(v)$.
+  \item[(2)] Decreasing $\pot(u)$.
+  \item[(3)] Both (1) and (2).
+\end{itemize}
+
+\begin{definition}[\brokuv] 
+  The broken value \brokuv of edge $(u, v)$ is defined as \[
+    \brokuv \Def -\wpot'(u, v).
+  \] 
+\end{definition}
+
+\noindent We can rephrase the previous observation to see that we only require an update of $\pot$ if $\brokuv > 0$.
+Otherwise, even under weight decreases, $\pot$ remains feasible and $w'$ thus consistent with $G$.
+
+With this definition, we can also rephrase \cref{lem:new_weight_in_cycle} in terms of $\wpot$ and \brokuv (instead of $w$ and $w(u, v)$).
+\algdk's invariant that every node that we visit increases in distance from the source node motivates the following definition and lemma.
+
+\begin{definition}[Partial Shortest Path Tree]
+  For source node $u$, positive weights $w$ and max distance $\Delta$, a partial shortest path tree $T$ from $u$, denoted by $\pspt{\Delta}(u)$ is a subtree of $G$ such that \[
+    d_{T, w}(u, v) = \begin{cases}
+      d_{G, w}(u, v) & \text{ if $d_{G, w}(u, v) \leq \Delta$,} \\
+      \infty & \text{ otherwise.}
+    \end{cases}
+  \] Thus, a partial shortest path tree only consists of all nodes that are at most a distance of $\Delta$ away from $u$.
+  We denote \algdk's variation that only considers nodes with distance at most $\Delta$ by $\algdk_\Delta$.
+\end{definition}
+
+\noindent Note that we require $w$ to be non-negative: otherwise a partial shortest path tree might be infeasible, \ie might not be able to \emph{reach} all desired nodes, as seen in \cref{fig:partial_spt}.
+
+\begin{lemma}
+  It suffices to compute $\pspt{\brokuv}(v)$ (instead of $\spt(v)$) with respect to $\wpot$ to check whether $w'$ introduces a negative weight cycle.
+\end{lemma}
+\begin{proof}
+  Following \cref{lem:new_weight_in_cycle}, $w'$ introduces a negative cycle if $d_{G, \wpot}(v, u) < \brokuv$.
+  Now since edge weights are positive and path lengths thus non-decreasing, we only need to consider nodes with distance less than \brokuv.
+  Since $\pot$ is feasible for $w$, $\wpot$ is non-negative.
+\end{proof}
+
+\noindent The partial shortest path tree can be computed by $\algdk_{\brokuv}$ and can not only determine the consistency of $w'$ but can also be used to maintain feasibility of $\pot$.
+Building on top of \cref{lem:shortest_paths_are_feasible}, partial subtree potential updates are feasible in the tree itself.
+
+\begin{lemma}\label{lem:partial_spt_nearly_feasible}
+  Let $T$ be some partial shortest path tree $\pspt{\Delta}$ in $G$ with respect to $\wpot$ for some feasible potential function $\pot$.
+  Then, the potential function $\pot'$ with $\pot'(u) = \pot(u) - T[u]$ for $u \in T$ ($\pot'(u) = \pot(u)$ otherwise) only breaks incoming edges $(x, y)$ onto $T$ by a value of $T[y]$ --- every other edge is not broken. 
+  Outgoing edges of $T$ have a potential weight greater than $\Delta$.
+\end{lemma}
+\begin{proof}
+  Due to \cref{lem:shortest_paths_are_feasible}, edges inside $T$ are not broken and do not need to be considered.
+  This is the same with edges not incident to $T$: both potentials remain unaffected and thus non-negative.
+
+  Now consider an incoming edge $(x, y) \in (V \setminus T) \times T$.
+  Since $\pot$ was feasible before, \ie $\wpot(x, y) \geq 0$, we now have $w_{\pot'}(x, y) \geq -T[y]$ since we only decreased $\pot(y)$.
+  For an outgoing edge $(x, y) \in T \times (V \setminus T)$, notice that by definition of $T$, we have $T[x] + \wpot(x, y) > \Delta$ and thus after decreasing $\pot(x)$ by $T[x]$, for the new potential weight of $(x, y)$, we have \[
+    w_{\pot'}(x, y) \geq \wpot(x, y) - T[x] > \Delta.
+  \] 
+\end{proof}
+
+\begin{observation}\label{obs:constant_pot_increases}
+  Let $\pot$ be a feasible potential function with respect to $w$, and $S \subseteq V$ any subset of nodes.
+  Then, the potential function $\pot'(u) = \pot(u) + \Delta$ for $u \in S$ (and $\pot'(u) = \pot(u)$ otherwise) only breaks outgoing edges (from $S$) by at most $\Delta$ and increases the potential weight of incoming edges by $\Delta$.
+\end{observation}
+
+\noindent A combination of \cref{lem:partial_spt_nearly_feasible,obs:constant_pot_increases} leads us to the main theorem allowing partial potential updates.
+
+\begin{theorem}\label{thm:partial_pot_update}
+  Let $T$ be some partial shortest path tree $\pspt{\Delta}$ in $G$ with respect to $\wpot$ for some feasible potential function $\pot$.
+  Then, the potential function $\pot'$ with $\pot'(u) = \pot(u) + \Delta - T[u]$ for $u \in T$ ($\pot'(u) = \pot(u)$ otherwise) is feasible.
+\end{theorem}
+\begin{proof}
+  Following the proof of \cref{lem:partial_spt_nearly_feasible,obs:constant_pot_increases}, we only need to consider outgoing and incoming edges onto $T$.
+  For outgoing edges $(x, y)$ note that in \cref{lem:partial_spt_nearly_feasible} we showed that decreasing $\pot(x)$ by $T[x]$ increases the potential weight to something greater than $\Delta$.
+  Then, by \cref{obs:constant_pot_increases}, this potential weight is decreased by $\Delta$ when increasing $\pot(x)$ by $\Delta$ and still $w_{\pot'}(x, y) \geq 0$.
+  For incoming edges $(x, y)$, the same arguments apply inversely since $T[y] \leq \Delta$.
+  Thus, $\pot'$ is feasible.
+\end{proof}
+
+\noindent Notice that since for $T = \pspt{\Delta}(x)$, we have $T[x] = 0$, the prior method increases $\pot(x)$ by $\Delta$.
+This leads to the following corollary which is the main result of this section.
+
+\begin{corollary}\label{cor:increasing_single_pot}
+  If decreasing the weight of $(u,v)$ does not introduce a negative cycle, $\pot$ remains feasible by applying \cref{thm:partial_pot_update} with $\pspt{\brokuv}(v)$.
+\end{corollary}
+
+Following \cref{lem:shortest_paths_are_feasible}, edges inside $\pspt{\brokuv}(v)$ now have a potential weight of $0$ after the update.
+Thus, if we had used some value $\Delta > \brokuv$ instead of $\brokuv$, $\pspt{\Delta}(v)$ would only increase and size and thus would necessitate more potential updates.
+And since we require the increase of $\pot(v)$ to be at least $\brokuv$ to maintain feasibility in option (1), $\pspt{\brokuv}(v)$ is the smallest partial shortest path tree that allows \cref{thm:partial_pot_update} to maintain feasibility.
+Hence, this method is indeed optimal if we want to minimize the number of potential updates to keep $\pot$ feasible (and do not want to change $\pot(u)$).
+
+Using \cref{cor:increasing_single_pot}, we can finally formalize our update procedure for an edge weight change.
+The optimized version of the algorithm is depicted in \cref{algo:sampler_pot}.
+
+\begin{algorithm}[!htb]
+  \caption{
+    \algsp: an approximate $\consdistr$-Sampler  
+  }
+  \label{algo:sampler_pot}
+
+  \KwInput{graph $G = (V, E)$, possible weights $\wInt$, number of steps $\steps$}
+  \KwOutput{consistent weight function $w\colon E \rightarrow \wInt$}
+
+  \BlankLine
+  $w \gets \text{arbitrary consistent weight function}$\;
+  $\pot \gets \text{feasible potential function with respect to $w$}$\;
+  \RepTimes{\steps}{
+    $(u, v) \follows \unif(E)$\;
+    $c \follows \unif(\wInt)$\;
+    $w' \gets \weightUp{(u, v)}{c}$\;
+    \uIf{$\brokuv \leq 0$}{
+      $w \gets w'$\;
+    } \Else{
+      $T \gets \algdk_{\brokuv}(G, \wpot, v)$\label{line:dijkstra_algo_sampler}\;
+      \If{$u \notin T$}{
+        $w \gets w'$\;
+        $\pot(x) \gets \pot(x) + \brokuv - T[x] \quad \forall x \in T$\label{line:partial_pot_update}\;
+      }
+    }  
+  }
+  \KwRet{$w$}\;
+\end{algorithm}
+
+This concludes solution (1).
+The runtime of \cref{algo:sampler_pot} follows with \cref{lem:dijkstra_runtime}.
+
+\begin{corollary}\label{cor:sampler_pot_runtime}
+  The approximate uniform sampler can be implemented in time \[
+    \rtime_{\algsp} = \Oh{\steps \cdot \left(m + n\log n\right)}.
+  \]
+\end{corollary}
+
+We will later see in \cref{sec:experiments} that this worst-case bound is greatly exaggerated in practice and a single $\algdk_{\brokuv}$ round is much faster than $\rtime_{\algdk}$ due to the additional pruning of the shortest path tree.
+
+\paragraph{Reversing the Direction.}
+To discuss solution (2), consider the inverted graph of $G$, \ie the graph we get by reversing every edge $(x, y)$ to $(y, x)$.
+
+\begin{definition}[Inverted Graph]
+  For graph $G = (V, E)$, the inverted graph is defined as $G^R = (V, E^R)$ with \[
+    E^R \Def \setc{(v, u)}{(u, v) \in E}.
+  \] 
+\end{definition}
+
+\noindent Note that for weight function $w$ (for $G$), we assign each reversed edge its original edge weight.
+Then, if $\pot$ is a potential function for $G$, the gradient is now inverted for $G^R$, \ie $\wpot(u, v) = w(u, v) + \pot(u) - \pot(v)$ for $(u, v) \in E^R$ since sources and targets are swapped.
+Therefore, $\wpot(u, v) = \wpot^R(v, u)$ and only the interpretation changes for $G^R$.
+Thus, every lemma and theorem we proved earlier for potential functions also apply to $G^R$ by including an additional factor of $(-1)$ to every potential change.
+For a completeness, we restate (the arguably most important) \cref{lem:shortest_paths_are_feasible}:
+
+\begin{lemma}[Adaptation of \cref{lem:shortest_paths_are_feasible}]\label{lem:shortest_paths_are_feasible_inverted}
+  Let $T$ be some shortest path tree in $G^R$ with respect to $\wpot^R$ for some potential function $\pot$ that contains all nodes.
+  Then, the potential function $\pot'$ with $\pot'(u) = \pot(u) + T[u]$ for $u \in V$ is feasible for $G$ and $w$.
+\end{lemma}
+\begin{proof}
+  First note that if $T$ exists, there are no negative cycles in $G^R$ and thus also none in $G$.  
+  By definition of a shortest path tree and \cref{lem:shortest_paths_unchanged}, we have \[
+    T[u] \leq T[v] + \wpot^R(v, u) \quad\Longleftrightarrow\quad \wpot^R(v, u) + T[v] - T[u] \geq 0
+  \] for every edge $(u, v) \in E$.
+  Thus, for $w_{\pot'}$ it holds that \begin{align*}
+    w_{\pot'}(u, v) &= w(u, v) + \pot'(v) - \pot'(u) \\ 
+                    &= w(u, v) + \left(\pot(v) + T[v]\right) - \left(\pot(u) + T[u]\right) \\
+                    &= w(u, v) + \pot(v) - \pot(u) + T[v] - T[u] \\
+                    &= \wpot(u, v) + T[v] - T[u] \\
+                    &= \wpot^R(v, u) + T[v] - T[u] \\
+                    &\geq 0
+  \end{align*} and $\pot'$ is feasible.
+\end{proof}
+
+Using similar conversion techniques, every following lemma and theorem also follows including \cref{thm:partial_pot_update,cor:increasing_single_pot} which we also restate for completeness.
+
+\begin{theorem}[Adaptation of \cref{thm:partial_pot_update}]\label{thm:partial_pot_update_inverted}
+  Let $T$ be some partial shortest path tree $\pspt{\Delta}$ in $G^R$ with respect to $\wpot^R$ for some feasible potential function $\pot$.
+  Then, the potential function $\pot'$ with $\pot'(u) = \pot(u) - \Delta + T[u]$ for $u \in T$ ($\pot'(u) = \pot(u)$ otherwise) is feasible. 
+\end{theorem}
+
+\begin{corollary}[Adaptation of \cref{cor:increasing_single_pot}]\label{cor:increasing_single_pot_inverted}
+  When decreasing $\pot(x)$ by $\Delta$, $\pot$ remains feasible by applying \cref{thm:partial_pot_update_inverted} with $\pspt{\Delta}(x)$.
+\end{corollary}
+
+We thus can alter \cref{algo:sampler_pot} by running $\algdk_{\brokuv}(G^R, \wpot^R, u)$ in \cref{line:dijkstra_algo_sampler} instead and \qq{increasing} potentials in \cref{line:partial_pot_update} by $T[x] - \brokuv$ instead.
+The runtime of this version however provides no asymptotic (or practical) benefits and thus also falls under \cref{cor:sampler_pot_runtime}.
+
+
+\paragraph{Combining both Directions.}
+
+\begin{algorithm}[!htb]
+  \caption{
+    \algbd: a bidirectional \algdk search.
+  }
+  \label{algo:bidirectional_dijkstra}
+
+  \KwInput{graph $G = (V, E)$, weights $\wpot\colon E \rightarrow \wInt,\,\,\wInt \subseteq \sRpos$, source node $v$, target node $u$, max distance $\Delta$}
+  \KwOutput{$\pspt{\Delta_f}(v)$ and $\pspt{\Delta_b}(u)$ with $\Delta_f + \Delta_b = \Delta$ or \shorterpath.}
+
+  \BlankLine
+  \For{$x \in V$}{
+    $D_f[x], D_b[x] \gets \infty$\;
+  }
+  $D_f[v], D_b[u] \gets 0$\;
+  \BlankLine
+  $Q_f, Q_b \gets \text{Min-}\textsc{PriorityQueues}$\;
+  add $v$ to $Q_f$ and $u$ to $Q_b$\;
+  \BlankLine
+  $\Delta_f, \Delta_b \gets 0$\;
+  \Repeat{}{
+    \uIf(\tcp*[f]{Forward-Search}){$Q_f$ is not empty}{
+      $x \gets$ node in $Q_f$ with minimum $D_f[x]$\;
+      $\Delta_f \gets D_f[x]$\;
+      \If{$\Delta_f + \Delta_b \geq \Delta$}{
+        $\Delta_b \gets \Delta - \Delta_f$\;
+        \Break\;
+      }
+
+      \For{$(x, y) \in E$}{
+        \uIf{$D_f[x] + \wpot(x, y) + D_b[y] < \Delta$\label{line:shorter_path_found_f}}{
+          \KwRet{\shorterpath}\;
+        }\ElseIf{$D_f[x] + \wpot(x, y) < \min\{D_f[y], \Delta\}$}{
+          $D_f[y] \gets D_f[x] + \wpot(x, y)$\;
+          \lIf{$y \notin Q_f$}{
+            add $y$ to $Q_f$
+          }
+        }
+      }
+    } \Else{
+      $\Delta_f \gets \Delta - \Delta_b$\;
+      \Break\;
+    }
+    
+    \BlankLine
+    \uIf(\tcp*[f]{Backward-Search}){$Q_b$ is not empty}{
+      $x \gets$ node in $Q_b$ with minimum $D_b[x]$\;
+      $\Delta_b \gets D_b[x]$\;
+      \If{$\Delta_f + \Delta_b \geq \Delta$}{
+        $\Delta_f \gets \Delta - \Delta_b$\;
+        \Break\;      
+      }
+
+      \For{$(y, x) \in E$}{
+        \uIf{$D_b[x] + \wpot(y, x) + D_f[y] < \Delta$\label{line:shorter_path_found_b}}{
+          \KwRet{\shorterpath}\;
+        }\ElseIf{$D_b[x] + \wpot(y, x) < \min\{D_b[y], \Delta\}$}{
+          $D_b[y] \gets D_b[x] + \wpot(y, x)$\;
+          \lIf{$y \notin Q_b$}{
+            add $y$ to $Q_b$
+          }
+        }
+      }
+    } \Else{
+      $\Delta_b \gets \Delta - \Delta_f$\;
+      \Break\;
+    }
+  }
+  \KwRet{$D_f, D_b$}\;
+\end{algorithm}
+
+Using \cref{cor:increasing_single_pot,cor:increasing_single_pot_inverted} we can finally tackle solution (3): decreasing $\pot(u)$ and increasing $\pot(v)$.
+The application is straightforward: we compute a partial shortest path tree in $G$ from $v$ for some max distance $\Delta$ and apply \cref{thm:partial_pot_update}.
+For the other side, we compute a partial shortest path tree in $G^R$ from $u$ for max distance $\brokuv - \Delta$ and apply \cref{thm:partial_pot_update_inverted}.
+Then, by \cref{cor:increasing_single_pot,cor:increasing_single_pot_inverted}, $\pot'$ is feasible again if both trees do not overlap.
+This however still leaves two problems open: 
+\begin{itemize}
+  \item[(i)] What if $w'$ induces a negative cycle?
+  \item[(ii)] What value should be picked for $\Delta$?
+\end{itemize}
+
+Our solution is a bidirectional search: instead of running both searches (\algdk instances) one after the other, we run them in parallel by alternating steps between them.
+The idea is summarized in \cref{algo:bidirectional_dijkstra}.
+We start with a source node $v$ and target node $u$ and a positive weight function $\wpot$ for graph $G$ as well as a max distance $\Delta$ (in our case we will set $\Delta = \brokuv$).
+The algorithm alternates between a forward \algdk search from $v$ and a backward \algdk search from $u$.
+If at any point, we find a \path{v}{u} with distance less than $\Delta$ (\cref{line:shorter_path_found_f,line:shorter_path_found_b}), we stop the algorithm and return \shorterpath.
+For $\Delta = \brokuv$, this indicates a negative cycle by \cref{lem:new_weight_in_cycle}.
+We dub the altered sampling algorithm using \algbd as \algbp.
+
+If no such path is ever found, at some point, we must have $\Delta_f + \Delta_b \geq \Delta$\footnote{
+  If the graph is strongly connected, \ie a \path{v}{u} exists which is an assumption for the sampling algorithm.
+} and have computed partial shortest path trees $\pspt{\Delta_f}(v)$ in $G$ and $\pspt{\Delta_b}(u)$ in $G^R$ that do not overlap.
+Then, we can simply apply \cref{thm:partial_pot_update,thm:partial_pot_update_inverted} to make $\pot'$ feasible again and accept the weight change.
+
+It is obvious that this approach does not incur a worse asymptotic runtime than solutions (1) and (2) since we run two \algdk instances instead of one.
+In fact, a bidirectional search heavily accelerates node-to-node shortest path algorithms in practice (and theory) by reducing the search space drastically~\cite{DBLP:journals/jea/BorassiN19,DBLP:conf/iwoca/BlasiusW23,DBLP:journals/talg/BlasiusFFKMT22}.
+This also translates to potential updates which can possibly be dramatically reduced by using a bidirectional search as illustrated in \cref{fig:pot_updates}.
+
+We will study more concrete comparisons of all three approaches (\algsl, \algsp, and \algbp) in detail in \cref{sec:experiments}.
+
+\begin{figure}[!htb]
+  \centering
+  \input{Figures/tikz/pot_updates}
+  \caption{
+      Unidirectional (1) and bidirectional (3) potential updates on a graph.
+      The number above an edge $(x, y)$ is $w(x, y)$ and below $\wpot(x, y) = w(x, y) + \pot(y) - \pot(x)$ where originally $\pot = 0$ (as in the top panel).
+      In the top panel, update $w(v_7, v_8) \gets -5$ broke edge $(v_7, v_8)$, \ie we need to increase the gradient $\pot(v_8) - \pot(v_7)$ by at least $\mathcal{B}_{v_7v_8} = 5$ to make $\pot$ feasible again.
+      Blue nodes in (1) and (3) mark nodes for which we had to update $\pot$.
+      Blue edges are traversed by \algdk and \algbd respectively to compute potential updates.
+  }
+  \label{fig:pot_updates}
+\end{figure}
+
+
+
+

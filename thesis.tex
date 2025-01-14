@@ -1,0 +1,45 @@
+\documentclass{thesis}
+
+\usepackage{lipsum}
+
+\input{defs}
+\input{tikzdef}
+
+\title{Uniform Sampling of Negative Weights in Shortest Path Networks}
+\author{Lukas Geis}
+\date{\today}
+\supervisor{Dr. Manuel Penschuck}
+
+\begin{document}
+    \frontmatter
+    \input{Chapters/Title_Goethe_Uni}
+    \input{Chapters/Abstract}
+    \input{Chapters/Acknowledgements}
+    \tableofcontents
+
+    \mainmatter
+    \input{Chapters/Introduction}
+    \input{Chapters/Preliminaries}
+    \input{Chapters/RelatedWork}
+    \input{Chapters/UniformSampling}
+    \input{Chapters/ParallelSampling}
+    \input{Chapters/Experiments}
+    \input{Chapters/Conclusion}
+
+    \appendix
+    \input{Chapters/AdditionalProofs}
+    \input{Chapters/SupportingFigures}
+    \input{Chapters/PotentialGeneration}
+
+    \bookmarksetup{startatroot}
+    \backmatter
+
+    % Remove \path macro as it interferes with urls in bibliography
+    \renewcommand{\path}{}
+    \clearpage
+    \addcontentsline{toc}{chapter}{Bibliography}
+    \bibliographystyle{plainurl}
+    \bibliography{thesis_cmp}
+
+    \input{Chapters/Declaration}
+\end{document}

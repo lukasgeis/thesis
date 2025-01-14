@@ -1,0 +1,44 @@
+\chapter{Introduction}\label{sec:introduction}
+
+For a given set of nodes and weighted edges that connect two nodes each, the shortest path problem asks to find a path from one node to another in the shortest way possible with respect to the edge weights.
+This task finds applications in a variety of fields such as network routing, geographical navigation, and other optimization tasks.
+In the classic variant where each edge $e$ is assigned a non-negative edge $w(e)$, \algdk's algorithm~\cite{DBLP:journals/nm/Dijkstra59} is a common choice for a simple and efficient algorithm.
+
+While most applications operate under the assumption of non-negative weights, many allow weights to be negative.
+The most prominent one is in the context of flow problems~\cite{PotentialsOriginal}.
+A more recent example that is steadily gaining importance is the routing of recuperating electric vehicles: energy gains downhill and energy expenditures uphill.
+Henceforth, the need for shortest path networks with negative weights is steadily growing.
+
+For such shortest paths to be meaningful, however, it is important that the underlying network does not contain a negative cycle, namely a cycle with a total length of less than $0$.
+In these cases, shortest paths are unbounded and it is better to traverse such negative cycles as often as possible.
+Especially in the context of electric vehicles, this is detrimental as negative cycles make no sense in the setting of energy expenditures.
+Thus, to properly study shortest path algorithms, it is important to have test data with negative weights but no negative cycles.
+
+Classic analytical and empirical studies of shortest path algorithms often involve random graph models~\cite{DBLP:journals/dam/FriezeG85,DBLP:journals/jea/BorassiN19} as they provide predictable and thus mathematically tractable structure~\cite{Barabasi2016-np,DBLP:books/cu/H2016}.
+In almost all frequently studied models, however, graph topology, \ie nodes and edges, and edge weights are considered separately.
+Although there is a significant effort put towards \qq{realistic} random graph models (see for example survey~\cite{DBLP:journals/csur/DrobyshevskiyT20}), maximum entropy network models are often preferred.
+
+In simple terms, a maximum entropy network model yields a probability distribution over a class of graphs that conform to specified (structural) properties such that this distribution is unbiased.
+That is, among all graphs that adhere to the desired property, there is no bias towards certain instances.
+This makes maximum entropy models a great choice for baselines and hypothesis testing~\cite{Milo824,gotelli1996null,Peixto15}.
+The most famous (and arguably most basic) maximum entropy network models are the \Gnp~\cite{gilbert1959random} and the \Gnm~\cite{erdds1959random} models that parametrize over graph size and density.
+
+The goal of this thesis however is to study and engineer generators of maximum entropy models for random edge weights that can be negative but not introduce negative cycles in given graphs.
+We start with a basic sampling algorithm and show its limitations before introducing a dynamic algorithm that approximates the desired maximum entropy model over time.
+We then engineer this approximate sampling algorithm and discuss possible methods and bottlenecks when trying to utilize parallelism.
+
+\cref{sec:preliminaries} introduces common notation and the most important notions and algorithms used in this thesis.
+\cref{sec:related_work} briefly discusses related work.
+In \cref{sec:uniform_sampling}, we define our desired model and engineer an approximate sampling algorithm which we try to parallelize in \cref{sec:parallel_sampling}.
+In \cref{sec:experiments}, we then extensively study all proposed algorithms and our underlying sampling method empirically.
+Finally, the appendix (chapters \cref{sec:additional_proofs,sec:supporting_figures,sec:pot_gen}) provides more detail for \cref{sec:experiments} as well as additional insights as part of this thesis.
+
+
+\bigskip
+
+\noindent
+\textit{
+  \underline{Disclaimer:} Most of this thesis is also the content of a preprint~\cite{RNEW}.
+  I was the main contributor to this paper and responsible for almost all experiments, the reference implementation as well as most new algorithmic insights of the following chapters.
+  Sections or results (for example in \cref{sec:additional_proofs}) that are not part of my direct work are marked by an additional citation.
+}

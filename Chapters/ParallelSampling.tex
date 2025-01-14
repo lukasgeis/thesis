@@ -1,0 +1,471 @@
+\chapter{Parallelizing Edge Weight Sampling}\label{sec:parallel_sampling}
+In this chapter, we want to discuss different methods of parallelization of the previously presented \markovs in \cref{sec:uniform_sampling}.
+
+\section{The Problem of Dependencies}
+An intuitive parallelization is applying several weight changes at a time instead of one, \ie we would combine up to $\ell$ MCMC steps into a single parallel one for some $\ell \in \sN$.
+This however can lead to multiple complications caused by dependencies between single steps.
+
+For exposition, fix a series of weight changes and let $\delta_1$ and $\delta_2$ be two proposed weight changes with $\delta_1 \Def \qq{w(u, v) \gets w_1}$ and $\delta_2 \Def \qq{w(x, y) \gets w_2}$ with ${u, v, x, y \in V}$ and $w_1, w_2 \in \wInt$ such that $\delta_1$ happens before $\delta_2$.
+
+\begin{definition}[Hard-Dependency]
+    A weight change $\delta_2$ is hard-dependent on a previous weight change $\delta_1$, if the length of a shortest \path{y}{x} with respect to $w$ changes when accepting $\delta_1$. 
+\end{definition}
+
+\noindent \Cref{fig:hard_dependency} depicts two possible scenarios on the $4$-cycle.
+The decision on whether to accept $w(u, v) \gets -2$ depends on whether an earlier weight change ${w(x, y) \gets \set{-1, 2}}$ is accepted because the length of a shortest \path{y}{x} changes when accepting $w(x, y) \gets \set{-1, 2}$.
+
+\begin{figure}[!htb]
+    \centering
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \input{Figures/tikz/hard_dependency_i}
+        \caption{Earlier Weight-Decrease}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \input{Figures/tikz/hard_dependency_ii}
+        \caption{Earlier Weight-Increase}
+    \end{subfigure}
+    \caption{
+        Hard dependencies between earlier (blue) and later (red) rounds.
+        If ${w(x, y) \gets -1}$ gets accepted first in (i), ${w(u, v) \gets -2}$ would be rejected.
+        If not, ${w(u, v) \gets -2}$ would be accepted.
+        If ${w(x, y) \gets 2}$ gets accepted first in (ii), ${w(u, v) \gets -2}$ would be accepted.
+        If not, ${w(u, v) \gets -2}$ would be rejected.
+    }
+    \label{fig:hard_dependency}
+\end{figure}
+
+Note that a hard-dependency does not necessarily imply that the decision on whether to accept $\delta_2$ depends on the acceptance of $\delta_1$.
+If for example in (i), edge $(v, x)$ would have weight $w(v, x) = 2$ instead of $1$, we could accept $w(u, v) \gets -2$ regardless of the weight change of $w(x, y)$.
+Hard dependencies are difficult too handle in a simple parallelization as without additional computation we do not know which weight changes are dependent on each other and thus can not be executed in parallel beforehand.
+
+For maximum efficiency, it seems beneficial to include our potential-based shortest-path optimizations \algsp or \algbp in a parallel algorithm.
+However, since we need to maintain the invariant in \algsp (and \algbp) that every edge has a non-negative potential weight in order to utilize \algdk (or \algbd), we not only change the weight of the affected edge but may also need to repair further potentials in the partial shortest path trees.
+Thus, after every accepted weight change $w(u, v) \gets c$ in \algsp (and \algbp), the length of a shortest \path{v_1}{v_2} might change even if it does not use the affected edge $(u, v)$.
+
+\begin{definition}[Soft-Dependency]    
+    A weight change $\delta_2$ is soft-dependent on a previous weight change $\delta_1$ if only potentials but not edge-weights change along a shortest \path{y}{x}.
+\end{definition}
+
+\noindent We include the condition that the shortest path does not change with respect to $w$ to better differentiate between hard and soft dependencies.
+Hence, $\delta_2$ is softly-dependent on $\delta_1$ if accepting $\delta_1$ in \algsp (or \algbp) incurs potential changes that affect a shortest \path{y}{x}.
+Recall that by \cref{lem:shortest_paths_unchanged} evey potential but the first and last one along a path cancel out and thus this happens only if potentials of $x$ or $y$ have changed.
+\begin{corollary}
+    A weight change $\delta_2$ is softly dependent on a previous weight change $\delta_1$ iff accepting $\delta_1$ incurs potential updates of $\pot(x)$ or $\pot(y)$.
+\end{corollary}
+
+
+\section{Resolving Dependencies}
+In the following, we only focus on parallelization of \algsp (and \algbp).
+As weight increases are usually relatively easy to handle, we show a framework that can resolve hard and soft dependencies of consecutive weight decreases in parallel.
+Afterward, we briefly show why weight increases in this specific framework do not work.
+
+Now let us consider a sequence of weight decreases.
+In order to resolve hard-dependencies, we have to differentiate between shortest paths that use edges for which it is yet not clear what their weight is (\ie edges with pending weight changes of earlier rounds) and shortest paths that only use edges with fixed weights.
+One method to do that is to entirely forbid the use of affected edges of earlier rounds in the shortest path trees of later rounds.
+
+\begin{definition}[Constrained Shortest Path Tree]
+    For a subset of edges $\hat{E} \subseteq E$ and source node $u$, a constrained shortest path tree $\spt(u, \hat{E})$ is a shortest path tree in the subgraph $\hat{G} = (V, E \setminus \hat{E})$ from source node $u$ with respect to $w$.
+\end{definition}
+
+Notice that constraining a shortest path tree $\spt(u)$ by a subset of edges $\hat{E}$ only changes shortest \paths{u}{v} (the distances) iff every shortest \path{u}{v} uses at least one edge in $\hat{E}$.
+
+\begin{observation}\label{obs:constrained_spt_edge_insertions}
+    For a subset of edges $\hat{E} \subseteq E$, a shortest \path{u}{v} $P$ in $\hat{G} = (V, E \setminus \hat{E})$ is either also a shortest \path{u}{v} in $G$ or every shortest \path{u}{v} in $G$ traverses at least one edge in $\hat{E}$.
+\end{observation}
+
+\noindent As illustrated in \cref{fig:constrained_edge_insertion}, in the simple case of $\hat{E} = \set{(x, y)}$, \cref{obs:constrained_spt_edge_insertions} implies that a shortest \path{u}{v} either does not use edge $(x, y)$ or consists of a shortest \path{u}{x} (which is part of $\spt(u, \hat{E})$), followed by edge $(x, y)$ and then by a shortest \path{y}{v} (which again is part of $\spt(u, \hat{E})$).\footnote{
+    By definition, $\spt(u, \hat{E})[v] = \infty$ if no \path{u}{v} exists in $\hat{G}$.
+    Thus, this only includes the case where every shortest \path{u}{v} traverses $(x, y)$.
+}
+
+\begin{figure}[!htb]
+    \centering
+    \input{Figures/tikz/constrained_spt_insertions}
+    \caption{
+        Inserting $\hat{E} = \set{(x, y)}$ back into $\hat{G} = (V, E \setminus \hat{E})$ to get $\spt(u)[v]$:
+        Either the shortest \path{u}{v} is unaffected or it changes by now including edge $(x, y)$, \ie $\spt(u)[v] = \spt(u, \hat{E})[x] + w(x, y) + \spt(y, \hat{E})[v]$.
+        If no negative cycles exist in $G$, we have $\spt(u, \hat{E})[x] = \spt(u)[x]$ and $\spt(y, \hat{E})[v] = \spt(y)[v]$.
+    }
+    \label{fig:constrained_edge_insertion}
+\end{figure}
+
+Note that we restrict ourselves to \algsp and thus can assume that all (potential) weights are non-negative.
+Therefore, in this example we also have $\spt(u, \hat{E})[x] = \spt(u)[x]$ and $\spt(y, \hat{E})[v] = \spt(y)[v]$ as every shortest path is simple.
+We can extend the previous example to constrained graphs with more than one edge restriction.
+We call the method of \cref{fig:constrained_edge_insertion} \emph{inserting $(x, y)$ and $\spt(y, \hat{E})$ into $\spt(u, \hat{E})$} to yield $\spt(u)$.
+
+\begin{lemma}\label{lem:multiple_spt_insertions}
+    For a subset of edges $\hat{E} \subseteq E$, let $\spt(u, \hat{E})$ be a constrained shortest path tree rooted in $u$.
+    Then, inserting all edges $(x,y)$ and shortest path trees $\spt(y)$ with $(x,y) \in \hat{E}$ back into $\spt(u, \hat{E})$ in any order yields $\spt(u)$.
+\end{lemma}
+\begin{proof}
+    \Wlog assume that every shortest path is unique and arbitrarily fix the order of insertions, \ie number the edges $(x_1,y_1),\ldots,(x_k,y_k)$ for $k = |\hat{E}|$ and insert them in order.
+    Let $\spt(u, \hat{E}_i)$ denote the tentative shortest path tree after $i$ insertions.
+    Also note that every value of $\spt(u, \hat{E}_i)[v]$ for some $i$ and $v \in V$ corresponds to a \path{u}{v} in $G$, meaning by definition $\spt(u, \hat{E}_i)[v] \geq d(u,v)$ at all times.
+    Now consider a \path{u}{v} $P$.
+    If $w(P) = d(u, v)$ for every $v \in V$, then the procedure is correct, \ie the lemma follows.
+    Thus fix some $v \in V$ and consider the shortest \path{u}{v} $P$.
+    There exists some $i \in [0..k]$ such that no edge $(x_j, y_j)$ with $j > i$ is present in $P$.
+    If the statements follows for every $i \in [0..k]$, \ie regardless of which round $P$ is first fully present in $G$, $P$ is correct, the lemma holds.
+    We prove by induction over the highest number $i \in [0..k]$. 
+    \\
+    \\
+    \underline{Base case $(i = 0)$:} 
+    If $P$ does not use any edges in $\hat{E}$, \ie $i = 0$, then $P$ is part of $\spt(u, \hat{E})$ and thus we have $\spt(u, \hat{E})[v] = d(u,v)$.
+    As our update procedure can only decrease the distance to a node, this value remains unchanged for the entirety of the procedure, meaning $\spt(u)[v] = d(u,v)$ at the end. 
+    \\
+    \\
+    \underline{Inductive step$(i \Rightarrow i + 1)$:}
+    Assume that the shortest paths of all nodes whose shortest paths do not use $(x_{i + 1},y_{i + 1}),\ldots,(x_k,y_k)$ are all correct.
+    By assumption, $P$ must use $(x_{i + 1},y_{i + 1})$ but not $(x_j,y_j)$ for $j > i + 1$.
+    Since we assume all (potential) edge weights to be positive, the shortest \path{u}{x_i} $P'$ can not use edge $(x_i,y_i)$.
+    Furthermore, because we assume shortest paths to be unique, $P'$ must be a subset of $P$, \ie $P$ consists of $P'$, followed by $(x_i,y_i)$ and a shortest \path{y_i}{v}.
+    This implies that $P'$ can not use edges $(x_j,y_j)$ for $j > i$ and by assumption must therefore already be correctly computed.
+    Then, due to the presupposition that $\spt(y_i)$ is correct, our procedure should correctly determine $\spt(u)[v] = \spt(u, \hat{E}_{i + 1})[v] = \spt(u, \hat{E}_i)[x_i] + \wpot(x_i,y_i) + \spt(y_i)[v]$, thus completing the proof.
+\end{proof}
+
+
+\begin{algorithm}[!htb]
+  \caption{
+    Parallel Weight-Decrease-\algsp superstep
+  }
+  \label{algo:par_superstep}
+
+  \KwInput{graph $G = (V, E)$, weight function $w$, feasible potential function $\pot$, number of decrease steps $\ell$ }
+  \KwOutput{$w$ and $\pot$ after $\ell$ steps of the MCMC}
+
+  \BlankLine
+  \tcp{Sampling Phase\label{line:par_phase_sampling}}
+  \ForPar{$i = 1,\ldots,\ell$}{
+    $(u_i, v_i) \gets \text{uniform random edge}$\;    
+    $w_i \gets \text{uniform random weight} \leq w(u_i, v_i)$\;
+  }
+
+  \BlankLine
+  \tcp{Computation Phase\label{line:par_phase_computation}}
+  $E_i \gets \setc{(u_j, v_j)}{j \leq i}$\;
+  \ForPar{$i = 1,\ldots,\ell$}{
+      compute $D_i \gets \spt(v_i, E_i)$\label{line:par_dijkstra}\;
+  }
+
+  \BlankLine
+  \tcp{Update Phase\label{line:par_phase_update}}
+  \For{$i = 1,\ldots,\ell$}{
+    \tcp{Broadcast Potential changes if necessary\label{line:par_broadcast_pot}}
+    \If(\tcp*[f]{Accept Weight-Update}){$D_i[u_i] \geq \mathcal{B}_{u_iv_i}$}{
+        $\delpot[v] \gets \max\{\mathcal{B}_{u_iv_i} - D_i[v], 0\}\,\,\forall v \in V$\;       
+        $\pot \gets \pot + \delpot$\;
+        \ForPar{$j = i,\ldots,\ell$}{
+            \ForPar{$v \in V$}{
+                $D_j[v] \gets D_j[v] + \delpot[v] - \delpot[v_j]$\;
+            }
+        }
+        $w(u_i, v_i) \gets w_i$\;
+    }
+
+    \BlankLine
+    \tcp{Broadcast new shortest paths\label{line:par_broadcast_sp}}
+    \ForPar{$j = (i + 1),\ldots,\ell$}{
+        \If{$D_j[u_i] + w_i < D_j[v_i]$}{
+            $D_j[v_i] \gets D_j[u_i] + w_i$\;
+        }
+
+        \BlankLine
+        \ForPar{$v \in V$}{
+            \If{$D_j[v_i] + D_i[v] < D_j[v]$}{
+                $D_j[v] \gets D_j[v_i] + D_i[v]$\label{line:par_update_sp}\;
+            }
+        }
+    }
+  }
+
+  \BlankLine
+  \KwRet{$w, \pot$}
+\end{algorithm}
+
+
+\Cref{lem:multiple_spt_insertions} should serve as an intuition for our parallel superstep, formalized in \cref{algo:par_superstep}.
+The key idea is to forbid the first $i - 1$ affected edges in the $i$\th \algdk iteration.
+Note that we do not use pruning but instead require the complete shortest path tree to be computed.\footnote{
+    This makes no difference asymptotically in the worst-case but makes this algorithm useless in practice as the best-case is asymptotically significantly worse.
+}
+Then, we iteratively decide whether to accept a weight decrease or not.
+Afterward, we \qq{broadcast} this weight change and the computed shortest path tree of the respective round to all later rounds that have yet to be decided.
+By induction, when we decide in round $i$, we have inserted all prior shortest path trees and weight changes and thus have a complete \emph{correct} shortest path tree $\spt(v_i)$.
+However, at the time we insert $(u_i,v_i)$ and subsequently $\spt(v_i)$ into $\spt(v_j, {\cdot})$ for $i < j$, $\spt(v_i)$ still uses unchanged weights of later rounds $i < k < j$, \ie if we decrease a weight in round $k > i$, this is not reflected in $\spt(v_i)$ which we insert in $\spt(v_j)$ for $j > k$.
+Hence, technically $\spt(v_i)$ is not completely \emph{correct} for $\spt(v_j)$.
+Nevertheless, this is in fact not a problem due to the way we design our insert-procedure.
+
+\smallskip
+
+\begin{lemma}
+    A sequence of $\ell$ succeeding weight decreases of \cref{algo:sampler_pot} are correctly simulated by \cref{algo:par_superstep}.
+\end{lemma}
+\begin{proof}
+    First note that by \cref{lem:shortest_paths_unchanged}, potential changes do not affect shortest path and that \cref{obs:constrained_spt_edge_insertions} works when each edge is equally weighted in both shortest path trees (\eg each shortest path tree assigns the same edge the same weight).
+    Thus, broadcasting potentials as done in the \cref{algo:par_superstep} not only does not conflict with any shortest path computation but also ensures that the $\spt$-insertions are correct.
+
+    For the main part, it suffices to show that after iteration $i - 1$ of the \underline{Update}-loop, $D_i$ is \emph{correct} for the current graph, \ie after the first $i - 1$ acceptions/rejections.
+    Because of the correctness of the original proof, correctness of \cref{algo:par_superstep} then follows.
+    We show by induction over the rounds $i$.
+    \\ \\
+    \underline{Base case ($i = 1$):}
+    In the first round, no prior edges are forbidden and \algdk correctly computes $D_1$ in \cref{line:par_dijkstra}.
+    \\ \\
+    \underline{Inductive step $(1,\ldots,i \Rightarrow i + 1)$:}
+    Fix some arbitrary $v \in V$ and consider a shortest \path{v_i}{v} $P$.
+    Let $j_1 < j_2 < \cdots < j_d$ denote the indices of affected edges of earlier rounds that lie on $P$.
+    Let $\pi$ denote the permutation of $j_1,\ldots,j_d$ in which these edges appear in $P$.
+    Consider the path decomposition of $P$ into these parts, \ie \[
+        P_1 = (\direct{v_i}{u_{\pi(j_1)}}), (u_{\pi(j_1)}, v_{\pi(j_1)}), \ldots, (u_{\pi(j_d)}, v_{\pi(j_d)}), P_{d + 1} = (\direct{v_{\pi(j_d)}}{v}).
+    \] 
+    
+    Now first observe that because we restrict ourselves to only weight-decreases, a shortest path can only change if the \emph{new} shortest path uses an edge whose weight was just decreased. 
+    Therefore if $P_k$ is a shortest path in $D_i$, it must also have been a shortest path in every prior round.
+    Thus, $P_k$ was correctly computed by \algdk in round $\pi(j_{k - 1})$ for $k \geq 2$.
+
+    Let $\sigma$ denote the function that maps $j_c$ to its direct predecessor in $\pi$, \ie if $\pi^{-1}(j_c) = j_b$, then $\sigma(j_c) = \pi(j_{b - 1})$ (if $b = 1$, then $\sigma({\cdot}) = i$).
+    Let $\hat{sigma}$ denote $\sigma$ defined for the immediate successor (return $0$ in the edge case with $u_0 = v$).
+    Then, by \cref{obs:constrained_spt_edge_insertions}, after round $j_1$, $D_{j_1}$ was correctly inserted into $D_{\sigma(j_1)}$ and thus $D_{\sigma(j_1)}[u_{\hat{\sigma(j_1)}}]$ is now correct.
+    We can then apply this argument recursively using the induction assumption to finally yield that $D_i[v]$ must be also correct completing the proof. 
+\end{proof}
+
+\begin{theorem}
+    For $p \leq \ell$ PUs, \emph{\cref{algo:par_superstep}} performs $\ell$ consecutive weight-decreases of the MCMC in \emph{\cref{algo:sampler_pot}} in parallel in time \[
+        \Oh{\left(m + n\log n + n\ell\right) \cdot \frac{\ell}{p}}.
+    \]
+\end{theorem}
+\begin{proof}
+    As mentioned above, the correctness of the algorithm follows using \cref{obs:constrained_spt_edge_insertions,lem:shortest_paths_unchanged}.
+    For runtime, consider the three phases: \begin{itemize}
+        \item[-] \underline{Sampling} \\
+            We sample $\ell$ edges and weights independent of each other using $p$ PUs. 
+            Sampling of a single edge and weight needs constant time leading to a runtime of $\Oh{\frac{\ell}{p}}$.
+        \item[-] \underline{Computation} \\
+            We run $\ell$ \algdk instances independent of each other. 
+            While some use even fewer edges and nodes (since they are constrained), every individual \algdk instance is still upper bounded by $\Oh{m + n\log n}$. 
+            Again, with $\ell$ instances and $p$ PUs, this yields a runtime of $\Oh{(m + n\log n) \cdot \frac{\ell}{p}}$.
+        \item[-] \underline{Update} \\ 
+            We have to run $\ell$ iterations of the for-loop sequentially. 
+            Here, the $i\th$ iteration first resolves the question of acceptance in constant time before potentially updating $\pot$ and broadcasting that update. 
+            Both the broadcasting as well as the updating can be done in parallel. 
+            We need to broadcast to $\Th{\ell - i}$ constrained shortest path trees as well as update $\Oh{n}$ potentials each in the worst case.
+            Thus, this needs time $\Oh{(\ell - i) \cdot n \cdot \frac{1}{p}}$.
+
+            Then, the new shortest paths are broadcasted.
+            This takes again the same time as broadcasting potentials (with additional constant work) as we need to broadcast to $\Th{\ell - i}$ constrained shortest path trees and update at most $\Oh{n}$ shortest paths in constant time.
+            Again, this yields a runtime of $\Oh{(\ell - i) \cdot n \cdot \frac{1}{p}}$.
+
+            Hence, \underline{Update} requires a total runtime of $\Oh{\sum_{i = 1}^{\ell}(\ell - i) \cdot \frac{n}{p}} = \Oh{n \cdot \frac{\ell^2}{p}}$.
+    \end{itemize}
+    Combining the runtime of all three phases and rearranging yields the stated runtime.
+\end{proof}
+
+In our previous discussion, we only considered a sequence of weight-decreases.
+As the original \markov however does not allow forcing of $\ell$ rounds to be weight-decreases, without changing the original algorithm, we can only parallelize consecutive weight-decreases if we randomly sample them without bias.
+Sadly, since we expect very few consecutive weight-decreases at best\footnote{
+    As an intuition: for uniform weights, we expect every second proposed weight update to be a weight-increase if we never reject a change.
+} and thus no real application of this method.
+Nonetheless, we provide an upper bound for the number of consecutive weight-decreases for which parallelization makes sense, \ie is work-optimal.
+
+It is easy to see that \qq{setting} $\ell$ greater than $p$ does not benefit neither runtime nor work as we only get the additional overhead from the greater number of rounds to be parallelized without the benefit of being able to parallelize all this work.
+Hence, both in a theoretical and practical context, it makes sense to \qq{set} $\ell = p$.
+For exposition, let $\mcal{P}$ denote the parallelized sampling algorithm for $\ell$ weight-decreases of the MCMC.
+
+This leads to the question of choosing $p$ in a way to make $\mcal{P}$ as work-efficient as possible.
+For that, substitute $p$ with $\ell$ and rearrange further to get the runtime of the algorithm as \[
+    \rtime_{\mcal{P}}(n, m, \ell) = \Oh{n \cdot \max\left\{\frac{m}{n}, \log n, \ell\right\}}.
+\]
+Remember that by \cref{cor:sampler_pot_runtime}, the runtime of the sequential algorithm \algsp (or \algbp) for $\ell$ steps of the MCMC is \[ 
+    \rtime_{\algsp}(n, m, \ell) = \Oh{\ell \cdot n \cdot \max\left\{\frac{m}{n}, \log n\right\}}.
+\]  
+Hence to achieve optimal work, $\ell$ should not be too big:
+
+\begin{corollary}
+    \emph{\cref{algo:par_superstep}} has optimal work in the worst-case for $\ell = \Oh{\max\left\{\frac{m}{n}, \log n\right\}}$ and thus a speedup of $\Th{p}$ in these cases.
+\end{corollary}
+
+Notice that algorithms such as \algsp and \algbp use pruning in their shortest path queries which significantly accelerates the best-case of the algorithm.
+While the original runtime-bounds still hold in the worst case and thus the previous corollary, because \cref{algo:par_superstep} does not use pruning, this method is not work-optimal in the best-case (or probably even average-case).
+
+\bigskip
+
+For weight-increases, observe that a parallelization of consecutive weight-increases is trivial as we accept every one without changing potentials.
+Unfortunately, the previous method does not simply work if we mix weight-increases and weight-decreases.
+The problem lies in later weight-increases.
+If between two rounds $i$ and $j$ a weight-increase happens in round $i < k < j$, a path $P$ that is a shortest \path{v_i}{v} in $\spt(v_i)$ could no longer be a shortest \path{v_i}{v} in $\spt(v_j)$ not because there now is some other \path{v_i}{v} that is shorter but because $P$ itself get longer due to the weight-increase and a previous path that was longer is now shorter.
+This can not be reflected in our simple update procedure as we only update shortest paths if they get shorter.
+
+Intuitive approaches such as separating shortest path trees in round $i$, \ie splitting the shortest path tree into two versions --- one with the current weight of $w(u_k,v_k)$ and one with the future weight of $(u_k,v_k)$ --- also do not work.
+The first one is possibly needed to determine whether to accept a weight-decrease of $(u_i,v_i)$ whereas the second one is then needed in rounds $l > k$.
+In a sequence of $\ell$ rounds, there could then be $\Th{\ell}$ rounds with weight-increases which could then lead to a possible need of $\Th{\ell^2}$ shortest path trees that need to be computed.\footnote{
+    If for example, the rounds alternate between weight-decreases and weight-increases.
+}
+This, in turn, would then lead to the same runtime in the parallel case as in the sequential case, but with no pruning and additional overhead due to parallelization.
+
+
+\section{Ignoring Dependencies}
+As resolving dependencies provides neither asymptotic nor practical benefits but rather worsens the performance, we might want to opt for a different approach to tackle dependencies.
+Hence, instead of trying to resolve dependencies immediately when they happen, we ignore them and resolve them at a later time.
+This is motivated by the idea that partial shortest path trees in (the arguable faster (see \cref{sec:experiments})) \algbp are often very small.
+Hence the hypothesis is that, for bigger graphs (with same $\wInt$), succeeding partial shortest path trees are unlikely not overlap. 
+
+\begin{definition}\label{def:conflict_len}
+    For node $v \in V$, the \textsc{ConflictLength} $C(v)$ is defined as the number of consecutive steps in \algbp (or \algsp) in which $v$ is not visited by the underlying search.
+    The conflict-length of the \markov is defined as the number of steps it takes before any node gets visited again.
+\end{definition}
+Note that the notion of \textsc{ConflictLengths} is loosely defined as it is not specified for which round $C$ is defined as a node most probably has a variety of \textsc{ConflictLengths} across the entire algorithm.
+This definition is rather meant as an intuition and metric we can later track in \cref{sec:experiments} as properties of not only the algorithm but the underlying \markov itself.
+
+Due to possibly (very) large shortest path trees in single rounds, many nodes might get a very low \textsc{ConflictLength} more often.
+However, we also expect many outliers among those, depending on graph topology and drawn weights; if many weight increases are drawn (for example when starting with $\wzero$ in the first $m$ rounds), the shortest path trees are practically non-existent and thus have an abysmal chance of colliding.
+
+For the average conflict-length of the \markov however, a single node conflict suffices to create a round-conflict which is way more likely.
+Hence, round-conflicts should happen way more frequently.
+
+\medskip
+
+\begin{algorithm}[!htb]
+  \caption{
+    \algbt
+  }
+  \label{algo:batching}
+
+  \KwInput{graph $G = (V, E)$, weight function $w$, feasible potential function $\pot$, number of PUs $p$, number of steps $\steps$}
+  \KwOutput{$w$ and $\pot$ after $\steps$ steps of the MCMC}
+
+  \BlankLine
+  $\ell \gets 1$\;
+  $Q \gets \textsc{Queue}$\;
+  \While{$\steps > 0$}{
+    \tcp{Sampling Phase}
+    \While{$Q.\texttt{length} < \min\{\ell,\steps\}$}{
+        $(u, v) \gets \text{uniform random edge}$\;    
+        $w \gets \text{uniform random weight}$\;
+        $Q.\texttt{push}(\set{(u, v), w})$\;
+    }
+    
+    \BlankLine
+    \tcp{Computation Phase}
+    \ForPar{$i = 1,\ldots,\ell$}{
+      compute partial shortest path trees $D_i$ using \algdk or \algbd for the $i$\th edge and weight in $Q$\;
+    }
+
+    \BlankLine
+    \tcp{Conflict Phase}
+    $i \gets \min\setc{j \in [\ell]}{\text{$D_j$ has conflict with an earlier round}}$\;
+    accept/reject first $j - 1$ weight changes in $Q$ and apply changes\;
+    pop first $j - 1$ elements in $Q$\;
+    \uIf{conflict happened}{
+        $\ell \gets 2^{\floor{\log_2(i)}}$\;
+    } \Else{
+        $\ell \gets \min\set{p, 2 \cdot \ell}$\;
+    }
+
+    $\steps \gets \steps - j + 1$\;
+  }
+
+  \KwRet{$w, \pot$}
+\end{algorithm}
+
+We propose a parallel algorithm making use of this notion (see \cref{algo:batching}).
+We briefly study the performance of \algbt in \cref{sec:experiments}.
+Due to the expected low value of average conflict-lengths of the \markov, we expect the additional overhead of \algbt to outweigh the benefits of parallelism for most graphs with reasonable size.
+
+\begin{observation}
+    For $p$ PUs, \algbt has an expected runtime of \[
+        \rtime_{\algbt} = \Oh{\steps \cdot \inv{\min\set{\hat{C}, p}} \cdot (m + n\log n)}
+    \] where $\hat{C}$ is the average conflict-length of the \markov.
+\end{observation}
+
+
+
+\section{Manipulating Dependencies}
+Unfortunately, the previous two methods (probably) perform subpar in practice which is why we want to study yet another method of resolving dependencies.
+Instead of strictly preserving the original \markov of \cref{algo:sampler}, we change up the sampling procedure to allow weight changes for multiple edges at once.
+Since two edges in general can be hard-dependent on each other, we restrict the class of edges over which we can parallelize.
+
+\begin{lemma}\label{lem:oblivious_neighbors}
+    For a fixed node $v \in V$, changing the weight $w(u_1,v)$ of an incoming edge $(u_1,v) \in E$ is oblivious to weight changes $(u_2,v),(u_3,v),\ldots$ of other incoming edges $(u_i,v) \in E$ that happened immediately prior if none introduce a negative cycle.
+\end{lemma}
+\begin{proof}
+    As increasing the weight of an edge is always oblivious to other changes, assume that we decrease $w(u_1,v)$.
+    If we changed the weight of another incoming edge $(u_2,v)$ of $v$ immediately before, then the only edge-weight change that differs is that of $(u_2,v)$: every other edge weight is unaffected.
+    Potentials might differ but they do not influence the decision on whether to accept the weight change of $(u_1,v)$.
+
+    Thus, accepting the weight-decrease of $(u_1,v)$ only depends on the existence of a \path{v}{u_1} $P$ with length at most $-\wpot(u_1,v)$.
+    As we assume there are no negative cycles, every shortest path is simple, and hence $P$ does not traverse any other incoming edge of $v$ (including $(u_2,v)$).
+    Therefore, $P$ is oblivious to weight changes of other incoming edges of $v$.
+\end{proof}
+
+\begin{algorithm}[!htb]
+  \caption{
+    \algns: an approximate $\consdistr$-Sampler  
+  }
+  \label{algo:node_sampler}
+
+  \KwInput{graph $G = (V, E)$, possible weights $\wInt$, number of steps $\steps$}
+  \KwOutput{consistent weight function $w\colon E \rightarrow \wInt$}
+
+  \BlankLine
+  $w \gets \text{arbitrary consistent weight function}$\;
+  $\pot \gets \text{feasible potential function with respect to $w$}$\;
+  \RepTimes{\steps}{
+    $v \follows \unif(V)$\;
+    $c \follows \unif(\wInt^{\degin(v)})$\;
+    $w' \gets w_{(u_1,v) \gets c_1, (u_2,v) \gets c_2, \ldots}$\;
+    $\brokuv \gets \max\setc{-\wpot'(u_i,v)}{i \in [\degin(v)]}$\;
+    
+    \BlankLine
+    $T \gets \algdk_{\brokuv}(G, \wpot, v)$\label{line:updated_dijkstra}\;
+    \For{$i \in [\degin(v)$}{
+        \If{$T[u_i] \geq -\wpot'(u_i,v)$}{
+            $w \gets \weightUp{(u_i,v)}{c_i}$\;
+        }
+    }
+    \If{at least one \emph{accepted}}{
+        $\pot(x) \gets \pot(x) + \brokuv - T[x] \quad \forall x \in T$\;
+    } 
+  }
+  \KwRet{$w$}\;
+\end{algorithm}
+
+Applying \cref{lem:oblivious_neighbors} to our \markov yields \cref{algo:node_sampler}.
+Note that the $\algdk_{\brokuv}(G, \wpot, v)$ call in \cref{line:updated_dijkstra} works slightly different than before as we now can traverse predecessors $u_i$ of $v$ for which we have a pending weight change of $(u_i,v)$ without early returning.
+Namely, as we limit the maximum distance of this \algdk call by the maximal broken value, we can find other predecessors in fewer steps without rejecting them.
+Following \cref{lem:oblivious_neighbors}, we can continue the search from these nodes without considering edges that lead back to $u$.
+
+\medskip
+
+Since we altered the algorithm, it is not directly clear that important properties of \cref{thm:sampler_is_uniform} still hold for this variant.
+
+\begin{theorem}\label{thm:node_sampler_is_uniform}
+    For $\steps \rightarrow \infty$, $w$ in \cref{algo:node_sampler} converges to $\states$.  
+\end{theorem}
+\begin{proof}
+    Most important observations for the original sampler also apply for this one.
+    Most notably, if there is a direct transition from $w$ to $w'$, there is also a direct transition from $w'$ to $w$.
+    Furthermore, increasing all incoming edge weights is always allowed and thus a possible step.
+    Thus, again, irreducibility follows from the same argument (over $\wmax$).
+
+    For aperiodicity, we can again observe that it is possible to draw the exact current weight of every incoming edge in one round leading to no change in $w$.
+    Hence, the underlying state graph has a loop and by \cref{obs:loop_implies_aperiodic}, this implies aperiodicity.
+
+    For symmetry, consider two neighboring states $w \neq w'$.
+    By definition, $w$ and $w'$ can differ only in incoming edge weights of at most one node.
+    Since every node is drawn uniformly regardless of the current weight function, the probability of drawing this exact node is equal in both cases.
+
+    Now, due to \cref{lem:oblivious_neighbors} and by construction of the sampling procedure, we can interpret weight changes of multiple incoming edges independent from each other, \ie the probability to change the weight of edge $e$ from $w(e)$ to $w'(e)$ is independent of the probability to change the weight of edge $e'$ from $w(e')$ to $w'(e')$.
+    Then, by \cref{obs:edges_equally_weighted}, the probability of transitioning from $w(e)$ to $w'(e)$ is equal to the probability of transitioning from $w'(e)$ to $w(e)$ (although we now have a $\cdot |V|$ instead of $\cdot |E|$).
+    Therefore, the \markov is again symmetric, and by \cref{lem:sym_mc_uniform}, this concludes the proof.
+\end{proof}
+
+Although we motivated \cref{algo:node_sampler} as a parallelized sampling algorithm, the \qq{parallel} should be taken with a grain of salt as the algorithm itself is sequential again and falls under the same shortcomings as the original sampling algorithm.
+However, we increased the number of edge-weight changes we can do per shortest path query, thus achieving a de-facto parallelization of the original sampling algorithm.
+
+We again conduct empirical evaluations of this algorithm in \cref{sec:experiments} where we compare \algns to \algbp to study whether the loss of the bidirectional search is outweighed by the increased (but biased) number of weight updates.
+
+

@@ -1,0 +1,41 @@
+\begin{tikzpicture}
+    \node[vertex] (u0) at (0,0) {$u_1$};
+    \node[vertex] (u1) at (0,2) {$u_2$};
+    \node[vertex] (u2) at (2,0) {$u_3$};
+    \node[vertex] (u3) at (2,2) {$u_4$};
+
+    \edge{u0}{u1}{}{}{bend left};
+    \edge{u1}{u3}{}{}{bend left};
+    \edge{u3}{u2}{}{}{bend left};
+    \edge{u2}{u0}{}{}{bend left};
+
+
+    \node[vertex] (v0) at (4,0) {$v_1$};
+    \node[vertex] (v1) at (4,2) {$v_2$};
+    \node[vertex] (v2) at (6,0) {$v_3$};
+    \node[vertex] (v3) at (6,2) {$v_4$};
+
+    \edge{v0}{v1}{}{}{bend left};
+    \edge{v1}{v3}{}{}{bend left};
+    \edge{v3}{v2}{}{}{bend left};
+    \edge{v2}{v0}{}{}{bend left};
+    \edge{v1}{v0}{}{}{bend left};
+    \edge{v3}{v1}{}{}{bend left};
+    \edge{v2}{v3}{}{}{bend left};
+    \edge{v0}{v2}{}{}{bend left};
+
+    \node[vertex] (w0) at (8,0) {$w_1$};
+    \node[vertex] (w1) at (8,2) {$w_2$};
+    \node[vertex] (w2) at (10,0) {$w_3$};
+    \node[vertex] (w3) at (10,2) {$w_4$};
+    \node[vertex] (w4) at (12,0) {$w_5$};
+    \node[vertex] (w5) at (12,2) {$w_6$};
+
+    \edge{w0}{w1}{}{}{bend left};
+    \edge{w1}{w3}{}{}{bend left};
+    \edge{w3}{w2}{}{}{};
+    \edge{w2}{w0}{}{}{bend left};
+    \edge{w2}{w4}{}{}{bend right};
+    \edge{w4}{w5}{}{}{bend right};
+    \edge{w5}{w3}{}{}{bend right};
+\end{tikzpicture}

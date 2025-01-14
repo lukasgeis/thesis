@@ -1,0 +1,12 @@
+\begin{tikzpicture}
+    \node[vertex] (u) at (0,0) {$u$};
+    \node[vertex] (x) at (2,0) {$x$};
+    \node[vertex] (y) at (4,0) {$y$};
+    \node[vertex] (v) at (6,0) {$v$};
+
+    \edge{u}{x}{$1$}{}{};
+    \edge{x}{y}{$-1$}{}{bend left, broken};
+    \edge{y}{x}{$0$}{}{bend left, broken};
+    \edge{y}{v}{$1$}{}{};
+    \edge{u}{v}{$3$}{}{bend left};
+\end{tikzpicture}

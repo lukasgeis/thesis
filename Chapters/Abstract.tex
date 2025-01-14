@@ -1,0 +1,30 @@
+\begin{center}
+  \textsc{Abstract}
+\end{center}
+
+This thesis considers a maximum entropy edge weight model for shortest path networks that allows for negative weights.
+For a given graph $G = (V, E)$ and an edge weight function $w\colon E \rightarrow \wInt$ with weights $\wInt$, a shortest \path{u}{v} is a \path{u}{v} that minimizes the sum of edge weights along traversed edges.
+If $G$ is strongly connected and $\wInt$ contains negative weights, the weight of a cycle can be negative. 
+In that case, a shortest path is no longer well defined which is why this should be avoided.
+Our model thus selects edge weights $w \in \wInt^{|E|}$ uniformly at random from all weights that do not introduce a negative cycle.
+
+We first propose an MCMC process and show that it converges to the required distribution before engineering an implementation of the process using a dynamic version of \algjs's algorithm in connection with a bidirectional \algdk search.
+We then try to parallelize the process and show the limits of this approach before slightly altering the original MCMC to allow for a potentially more efficient implementation.
+Finally, we empirically study the performance characteristics of every proposed implementation of the novel sampling algorithm and the model's output.
+We also compare all metrics across multiple graph classes, graph sizes, and initial states.
+
+\newpage
+\begin{center}
+  \textsc{Zusammenfassung}
+\end{center}
+
+Diese Arbeit betrachtet ein Kantengewichtsmodell mit maximaler Entropie für kürzeste Weg-Netzwerke, das negative Gewichte zulässt.
+Für einen gegebenen Graphen $G = (V, E)$ und eine Kantengewichtsfunktion $w\colon E \rightarrow \wInt$ mit Gewichten $\wInt$ ist ein kürzester \direct{u}{v} Weg ein \direct{u}{v} Weg, der die Summe der Kantengewichte entlang durchlaufener Kanten minimiert.
+Wenn $G$ stark zusammenhängend ist und $\wInt$ negative Gewichte enthält, kann das Gewicht eines Kreises negativ sein.
+In diesem Fall ist ein kürzester Weg nicht mehr wohldefinitert, weshalb dies vermieden werden sollte.
+Unser Modell wählt daher Kantengewichte $w \in \wInt^{|E|}$ gleichmäßig zufällig aus allen Gewichten aus, die keinen negativen Kreise erzeugen.
+
+Wir schlagen zunächst einen MCMC-Prozess vor und zeigen, dass dieser zur erforderlichen Verteilung konvergiert, bevor wir eine Implementierung des Prozesses unter Verwendung einer dynamischen Version des \algjs-Algorithmus in Verbindung mit einer bidirektionalen \algdk-Suche entwickeln.
+Anschließend versuchen wir, den Prozess zu parallelisieren und die Grenzen dieses Ansatzes aufzuzeigen, bevor wir den ursprünglichen MCMC leicht ändern, um eine potenziell effizientere Implementierung zu ermöglichen.
+Abschließend untersuchen wir empirisch die Leistungsmerkmale jeder vorgeschlagenen Implementierung des neuen Sampling-Algorithmus und die Ausgabe des Modells.
+Wir vergleichen außerdem alle Metriken über mehrere Graphenklassen, Graphengrößen und Anfangszustände hinweg.

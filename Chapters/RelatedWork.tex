@@ -1,0 +1,97 @@
+\chapter{Related Work}\label{sec:related_work}
+
+\section{Shortest Path Algorithms}
+Apart from the aforementioned shortest path algorithms \algdk, \algbf, and \algjs, there are a multitude of further algorithms used both in theory in practice.
+Most importantly, the study of parallel single shortest path algorithms, kicked off by the \algdt algorithm proposed by Meyer and Sanders~\cite{DeltaStepping}, is to this day an ongoing field~\cite{RadiusStepping, SteppingAlgorithms, DeltaSteppingImprov1, DeltaSteppingImprov2, ApproxSSSP, krhoShortcutting}.  
+
+\algdt works by creating buckets $B_0, \ldots$ of width $\Delta$ such that $B_i$ stores nodes with tentative distances $[i \cdot \Delta, (i + 1) \cdot \Delta)$.\footnote{
+  This definition directly implies that we require non-negative weights for \algdt.
+}
+The algorithm then marks all nodes in the current bucket and relaxes its outgoing edges with weight less than $\Delta$ in parallel.
+This process repeats until the current bucket is empty before proceeding with the next bucket.
+\algdt generalizes both \algdk and \algbf as for $\Delta = \min_{e \in E}w(e)$, \algdt mimics \algdk and for $\Delta = \max_{u, v \in V}d(u, v)$ it mimics \algbf~\cite{DeltaStepping}. 
+While parallel shortest path algorithms are very relevant in practice, they are not of interest to this thesis and thus are not considered in the following.
+
+In the regime of non-negative edge weights, \algdk is optimal in the sequential case and thus almost always the chosen algorithm.
+For negative edge weights, however, \algbf still is the most used shortest path algorithm in practice despite a subpar running time.
+Since the introduction of \algbf in the 50s however, many theoretical improvements were achieved, starting with the scaling technique in the 80s and 90s~\cite{Scaling1, Scaling2, Scaling3} leading to a runtime of $\Oh{m\sqrt{n}\log W}$ where $W \geq 2$ is the minimum integer such that $w(e) \geq -W$ for all $e \in E$.
+Further improvements were achieved by focusing on specific graph classes such as planar graphs~\cite{NegSSSPPlanar1, NegSSSPPlanar2, NegSSSPPlanar3, NegSSSPPlanar4} and dense graphs with small weights~\cite{NegSSSPDense}.
+
+An alternative approach is to model the SSSP problem as a minimum-cost flow problem by assigning each edge $e \in E$ an infinite capacity and cost $w(e)$.
+Then, when adding a new node $t$ into the graph with zero weighted edges $(v, t)$ for $v \in V$, every minimum-cost flow from some source $s$ to $t$ equals a shortest path tree $\spt(s)$ (assuming that there is no negative cycle).
+Hence, a multitude of advancements of the last decade for minimum-cost flow also translate to the negative weighted SSSP problem.
+Notably, a combination of convex optimization techniques and dynamic algorithms lead to runtimes $\Ot{m^{10 / 7}}$~\cite{MinFlow1}, $\Ot{m^{4 / 3}}$~\cite{MinFlow2}, and $\Ot{m + n^{3 / 2}}$~\cite{MinFlow3, MinFlow4} where $\symOt$ hides polylogarithmic factors.
+This also resulted in a near linear runtime of $\Oh{m^{1 + o(1)}\log W}$~\cite{MinFlowNearLinear}.
+
+The most recent breakthrough of Bernstein, Nanongkai, and Wulff-Nilsen~\cite{NegSSSPNearLinear} and follow up work of Bringmann, Cassis, and Fischer~\cite{NegSSSPNowFaster} achieved a running time of $\Ot{m\log W}$ without a reduction to minimum-cost flow.
+Their algorithms work by computing a feasible potential function using a combination of the scaling technique and graph decompositions into strongly connected subgraphs with lower diameters.
+Although only used as a subroutine, they also propose a simple algorithm \algen for computing a feasible potential function using a combination of \algdk and \algbf which we will briefly highlight in \cref{sec:pot_gen}.
+Apart from \algen, we do not go into detail about their algorithms as they are highly complex and unpractical compared to algorithms such as \algbf even though they provide better asymptotic guarantees.
+
+
+\section{Uniform High Entropy Models}
+\emph{
+  \noindent We are unaware of previous work towards high entropy models for generating negative edge weights.
+  Thus, we instead review different high entropy models in the field of graph topology which is still an active field of research today~\cite{DBLP:books/crc/22/PenschuckBHL0S0022}. 
+}
+
+\bigskip
+
+Common high entropy models in the context of graph generators include \Gnp~\cite{gilbert1959random}, \Gnm~\cite{erdds1959random}, and the Configuration Model~\cite{DBLP:journals/jct/BenderC78,newmann10,bollobas1985random,DBLP:journals/rsa/MolloyR95a}.
+Due to their simplistic nature, efficient implementations often rely on basic sampling algorithms such as Bernoulli trials and sampling without replacement~\cite{batagelj2005efficient,DBLP:conf/edbt/NobariLKB11,DBLP:journals/toms/SandersLHSD18,DBLP:journals/jpdc/FunkeLMPSSSL19}.
+
+We already introduced the \Gnp model earlier in \cref{sec:gnp}.
+The \Gnm model draws a uniform graph with $n$ nodes and $m$ edges which can be rephrased as sampling without replacement which leads to very efficient implementations~\boxcite{batagelj2005efficient,Reservoir}.
+
+The Configuration Model is a bit more involved and is parametrized by a degree sequence $(d_1, \ldots, d_n)$ with the goal of generating a graph with $n$ nodes $v_1, \ldots, v_n$ such that node $v_i$ has degree $d_i$.\footnote{
+  In this case, the graph is undirected and we have $\degin(v) = \degout(v)$ for every node, and every edge always is counted for both ends. 
+}
+The model works by placing each node $v_i$ exactly $d_i$ times ínto an urn.
+Then, until the urn is empty, two random nodes $v_i, v_j$ are drawn uniformly without replacement, and an edge $\set{v_i, v_j}$ is emitted. 
+We can implement this efficiently by modeling the urn as an array and reading it in random order~\cite{DBLP:conf/alenex/Allendorf0PTW22}.
+This is akin to shuffling the array and reading it in order and thus emits very efficient implementations~\cite{ParShuffle}.
+
+Note however that this might produce a non-simple graph, \ie a graph with multi-edges or self-loops.
+A more complex model is the problem of sampling a uniform simple graph from all simple graphs with a prescribed degree sequence.
+Exactly sampling from this distribution can be achieved naively by drawing from the Configuration model repeatedly until a simple graph is drawn, \ie using rejection sampling.
+While this method is linear in the number of edges of the graph, it is exponential in the maximum degree squared and thus only practical for graphs with small degrees~\cite{DBLP:journals/jal/Wormald84}.
+
+An efficient alternative is a combination of the Configuration Model and the \emph{switching} method~\cite{mckay1985asymptotics,DBLP:journals/jal/McKayW90}.
+First, a uniform graph with the prescribed degree sequence and not too many self-loops or multi-edges is drawn using the Configuration Model and rejection sampling.
+Then, a series of \emph{switching} steps that exchange endpoints of two (or more) selected edges, are applied until the graph is simple.
+This often involves additional rejection steps to counteract the bias that is introduced by the switchings.
+Efficient generators exist for sampling graphs with degrees up to the fourth root of the number of edges~\cite{DBLP:journals/jal/McKayW90, DBLP:journals/rsa/ArmanGW21}, sampling regular graphs with slightly higher degrees~\cite{DBLP:journals/siamcomp/GaoW17, DBLP:journals/rsa/ArmanGW21}, as well as graphs with degree sequences that follow a power-law distribution with a sufficiently small power-law exponent~\cite{DBLP:conf/soda/GaoW18, DBLP:journals/rsa/ArmanGW21}.
+
+Another efficient approach is to approximate a uniform sampler using the Markov-Chain-Monte-Carlo method~\cite{rao1996markov,DBLP:conf/alenex/GkantsidisMMZ03,strona2014curveball,CarstensPhd}.
+For example, the Edge-Switching method starts with a deterministic simple graph with the prescribed degree sequence and then repeatedly selects two edges uniformly at random and exchanges their endpoints (similar to the \emph{switching} method) if this does not introduce a self-loop or a multi-edge.
+While there exist many practical implementations of such samplers~\cite{DBLP:conf/icpp/BhuiyanCKM14, DBLP:journals/jea/HamannMPTW18,DBLP:conf/esa/CarstensH0PTW18,DBLP:conf/alenex/Allendorf0PTW22,DBLP:journals/jpdc/AllendorfMPT23}, there tends to be a large gap between rigorous bounds on their mixing times compared to practically sufficient choices~\cite{DBLP:journals/corr/abs-1903-06600,DBLP:conf/alenex/GkantsidisMMZ03, DBLP:journals/jea/HamannMPTW18, CarstensPhd}.
+
+Nonetheless, such MCMC processes are often very simple and thus allow for easily adding additional constraints (\eg \cite{DBLP:conf/alenex/StantonP11,DBLP:journals/compnet/VigerL16,DBLP:conf/dexa/ArafatBDB20}).
+For example, \cite{DBLP:journals/compnet/VigerL16} extend Edge-Switching with graph connectivity tests to draw a uniform random graph from the set of simple connected graphs with a prescribed degree sequence.
+
+
+\section{Parallel MarkovChains}
+\emph{
+  As we are again unaware of previous work towards parallel \markovs for generating negative edge weights, we instead briefly discuss common techniques for parallelizing the previous example.
+}
+
+\bigskip
+
+As the basic step of the Edge-Switching method is very simple, a direct parallelization of each step of the \markov provides no real benefit.
+Instead, simple \markovs are commonly not parallelized per step but rather over a range of steps, \ie trying to execute multiple steps of the \markov in parallel instead of one after another~\cite{DBLP:journals/jpdc/AllendorfMPT23,DBLP:conf/esa/CarstensH0PTW18}.
+In the case of the Edge-Switching method, common parallelization tries to perform multiple switches of edges at once~\cite{DBLP:journals/jpdc/AllendorfMPT23,DBLP:conf/icpp/BhuiyanCKM14}.
+However, as two different switches can affect the same node, complications can arise when trying to perform them in parallel.
+For example, two switches could independent of each other try to create the same edge.
+If both switches were to be accepted, this would directly insert a Multi-Edge into the graph which is forbidden in the underlying Prescribed-Degree-Sequence model.
+
+Thus, parallel methods often involve additional checks to prevent such \emph{dependencies} from creating faulty states.
+They also often contain slight adjustments to the original \markov to make prediction and handling of \emph{dependencies} easier.
+This however can lead to alterations in the resulting target distribution as in \cite{DBLP:conf/icpp/BhuiyanCKM14} where authors conducted an empirical error analysis to bound this alteration instead.
+Other results however maintain the same target distribution even in the parallel case with alterations in the \markov~\cite{DBLP:journals/jpdc/AllendorfMPT23,DBLP:conf/esa/CarstensH0PTW18}.
+
+In \cite{DBLP:journals/jpdc/AllendorfMPT23}, Allendorf et al. present a parallel Edge-Switching method, dubbed the Global Edge-Switching \markov (G-ES-MC) based on~\cite{UnifyingFramework} where the sequence of edges that are to be switched is drawn as a permutation $\pi$ of all edges and a switch-length $\ell \leq \floor{m / 2}$.
+Then, the first $\ell$ pairs of edges in $\pi$ try to perform an edge switch.
+While this method does alter the original Edge-Switching \markov by forcing $\ell$ consecutive edges to be distinct, the target distribution remains unchanged.
+They then resolve dependencies using a concurrent hash table to store whether dependencies for a specific switch have already been resolved and the switch can be performed (or rejected).
+
+

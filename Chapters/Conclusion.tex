@@ -1,0 +1,62 @@
+\chapter{Conclusion and Outlook}\label{sec:conclusion}
+\paragraph{Conclusion.} 
+In this thesis, we introduced a maximum entropy model that allows sampling of signed edge weights for static graph networks which do not introduce negative cycles.
+In \cref{sec:uniform_sampling}, we proposed a Monte-Carlo-\markov sampler that starts from allowed edge-weights and dynamically permutes edge-weights for a given number of steps.
+In each step, we ensure that the proposed weight change does not create a negative cycle in the graph.
+We then showed that this method in fact converges to the desired target distribution of the model.
+
+We then engineer multiple algorithms step-by-step to allow for an efficient practical implementation of this sampling algorithm.
+Starting with a naive implementation using a very slow \algbf, we introduce dynamic node potentials that allow for the use of the much faster \algdk before going even one step further and incorporating a bidirectional search \algbd to speed up the algorithm even further.
+
+In \cref{sec:parallel_sampling}, we show that a parallization of the previous algorithms is in fact not simple and requires meticulous techniques to not deviate from the original target distribution.
+We show that we can parallelize a consecutive number of rounds under certain conditions with optimal work but also that this method is in no way practical.
+We then propose a naive implementation without any theoretical guarantees before sidestepping the original sampling algorithm and proposing an alternative method \algns that works the same at its core but forces certain edge-weight updates to be consecutive.
+Nonetheless, we also prove that this new method also converges to the desired target distribution.
+
+\medskip
+
+In \cref{sec:experiments}, we conduct a series of experiments on three different random graph models to not only study the behaviour of the proposed algorithms but also of the underlying \markov itself.
+These range from simple weight distributions and total variation distances to meta metrics such as acceptance rate of the sampler, coverage time, as well as the number of conflicts between two rounds across the algorithm.
+We benchmark our implementations not only with runtime but also algorithm-specific metrics such as number of Queue-Insertions and Potential-Updates.
+
+\bigskip
+
+Coherent with the shown convergence of the underlying sampling algorithm, we find that the choice of an initial weight functions plays no significant role in the final (distribution of) metrics apart from a few outliers attributed to early rounds where the difference is still very apparent between two initial weight functions.
+Also, a higher number of edges and therefore a higher number of cycles in a graph lead to worse performances across almost all metrics: higher runtime, more Queue-Insertions, more Potential-Updates, lower acceptance rate and higher number of conflicts.
+Nonetheless, the general trend remains unchanged, not only for varying number of edges but also for different graph classes where we can observe similar trends with slight deviations.
+
+We find that \algbp is by far the best implementation across all metrics and should always be the preferred implementation in practice.
+Even the parallelized algorithms can not compare to \algbp and most of the time not even to the much slower \algsp.
+
+\bigskip
+
+\paragraph{Outlook.}
+Especially the attempt to parallelize the sampling procedure warrants further investigation and new techniques as in the current state, no parallization-technique can rival the performance of the sequential \algbp.
+To this end, the method of \algns could be particularly interesting because it is the only simple case in which two edge-weight changes are guaranteed to not conflict with each other.\footnote{
+  Apart from edge-weight changes in two different SCCs.
+}
+One could also propose a technique similar to the Configuration model paired with the \emph{edge-switching} technique: draw random edge-weights with possibly negative cycles and randomly \emph{repair} edges to eventually yield the desired target distribution.
+
+It is also possible to parallelize the search in \algns using \algdt.
+Since \algsp and \algbp have very small shortest path trees regardless of original graph size, \algdt provides no benefit.
+For \algns however, the size of the shortest path tree is expectedly much bigger for bigger graphs as we prune over the maximum broken value (instead of a single one).
+Hence, for \algns, \algdt might be beneficial at some point.\footnote{
+  \cite{SteppingAlgorithms} proposed a practical optimization that runs \textsc{Bfs} to collect (at most) $4096$ nodes as the neighborhood of a node.
+  Thus, running a pruned \algdt on a graph with only $n = 10000$ nodes has no practical benefit and was thus not considered.
+}
+
+Another big point of study are the theoretical bounds on the mixing time of this sampling algorithm.
+We provide a proof in \cref{sec:rapid-mixing} that this method is in fact rapidly mixing on the $n$-Cycle but the bound is far from practical and not easily extendable to general graphs.
+Thus, a general bound on the mixing time of the underlying \markov is definitely an important next step.
+A generalization to certain graph classes would also be a considerable progress.
+
+We also provide a general algorithm in \cref{sec:pot_gen} for computing consistent potentials that builds upon the technique of \algns but show that this is no better than current techniques in practice.
+Nonetheless, further investigation in this direction could prove beneficial and maybe even speed up state-of-the art algorithms.
+At this point however, this seems unlikely.
+
+Finally, and probably most important, we could further extend the experiments.
+Not only in quantity but also in quality.
+Currently, we only investigate random graph models with low diameter whereas road networks in the real world have a bigger diameter.
+These road networks are certainly a point of interest for this maximum entropy model as laid out in \cref{sec:introduction}.
+Due to time and space restrictions, they were not included as part of the experiments.
+In \cite{RNEW}, we ran some of the experiments of this thesis on a real-world road network.

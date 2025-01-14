@@ -1,0 +1,11 @@
+\begin{tikzpicture}
+    \node[vertex] (u) at (0,0) {$u$};
+    \node[vertex] (v) at (2,0) {$v$};
+    \node[vertex] (x) at (3.5,0) {$x$};
+    \node[vertex] (y) at (5.5,0) {$y$};
+
+    \edge{u}{v}{0}{-2}{DarkRed};
+    \edge{v}{x}{1}{}{};
+    \edge{x}{y}{0}{2}{GoetheBlue};
+    \edge{y}{u}{-1}{}{bend right};
+\end{tikzpicture}

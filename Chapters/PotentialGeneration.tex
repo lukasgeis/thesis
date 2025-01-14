@@ -1,0 +1,147 @@
+\chapter{Feasible Potential Computation}\label{sec:pot_gen}
+Notice that in neither of our proposed \markovs, the engineered check for negative weights requires the weight update itself to be randomized.
+In this direction, one could also propose a deterministic sequence of weight updates for a given graph to achieve a desired weight function if no negative cycles are created.
+Even better, as our improved \markovs such as \algsp, \algbp, and \algns also compute a feasible potential function $\pot$ for the final weight function $w$, we can utilize these methods to compute a feasible potential function $\pot$ for a deterministic $w$ if possible or output that a negative cycle exists.
+
+As briefly highlighted in \cref{sec:related_work}, this is the standard method for theoretical state-of-the-art \sssp algorithms with negative edge-weights: first compute a feasible potential function $\pot$ or output that a negative cycle exists in which case \sssp is infeasible.
+Then run \algdk for weight function $\wpot$ which adheres to optimal runtime bounds to compute the shortest path tree.\footnote{
+  One could then subtract the potential gradient to get correct distances with respect to $w$.
+}
+
+Hence, we propose a deterministic variant of \algns that makes use of \cref{lem:oblivious_neighbors} to compute a feasible potential function $\pot$ for a given weight function $w$ on graph $G = (V,E)$.
+
+\begin{theorem}\label{thm:det_pot_computation}
+  For a given graph $G = (V,E)$ and weight function $w\colon E \to \sR$, let $n^-$ denote the number of nodes in $V$ with incoming negative-weighted edges. 
+  Then there is an algorithm that computes a feasible potential function $\pot$ in time \[
+    \Oh{n^- \cdot (m + n\log n)}
+  \] or outputs \negcycle if there is a negative cycle in the graph.
+\end{theorem}
+\begin{proof}
+  We adapt \algns by starting with weight function \[
+    w_+\colon E \to \sRpos, \qquad e \mapsto \max\set{0, w(e)}. 
+  \] 
+  As $w_+(e) \geq 0$ for every $e \in E$, $\pot = 0$ is feasible and $(G,w_+)$ are consistent.
+  We then iteratively re-insert negative edge-weights into $w_+$ to eventually yield $w$ (or abort earlier).
+  We can do this one node at a time where we set the weight of all incoming edges of this node to their original weight (\ie resetting the weight of negative-weighted edges) and checking for consistency using the method of \algns.
+  This also includes the updates to $\pot$ that are needed to maintain feasibility throughout the algorithm.
+
+  Let $w_+^{(i)}$ denote the (tentative) weight function after $i$ steps of this algorithm.
+  Then, by previous observations in \cref{obs:weight_increase_possible,thm:node_sampler_is_uniform}, if $(G,w)$ are consistent, so are $(G,w_+^{(i)})$ as $w_+^{(i)}(e) \geq w(e)$ for every $e \in E$.
+  Correctness then follows from the correctness of \algns whereas runtime follows by definition of $n^-$ (as we only need to update incoming edges of nodes that have negative-weighted incoming edges) as well as \cref{lem:dijkstra_runtime}.
+\end{proof}
+
+\begin{algorithm}[!htb]
+  \caption{
+    \algen~\cite{NegSSSPNearLinear,NegSSSPNowFaster}
+  }
+  \label{algo:elimneg}
+
+  \KwInput{graph $G = (V, E)$, weights $w\colon E \rightarrow \sR$, helper node $s$}
+  \KwOutput{$\spt(s) = \pot$ or \negcycle}
+
+  \BlankLine
+  \For{$v \in V$}{
+    $D[v] \gets \infty$\;
+    $P[v] \gets \textsc{Null}$\;
+  }
+  $D[s] \gets 0$\;
+  \BlankLine
+  $Q \gets \text{Min-}\textsc{PriorityQueue}$\;
+  $S \gets \textsc{Stack}$\;
+  add $s$ to $Q$\;
+  \Repeat{}{
+    \tcp{Dijkstra Phase}
+    \While{$Q$ is not empty}{
+      $v \gets$ node in $Q$ with minimum $D[v]$\;
+      $S.\texttt{push}(v)$\;
+      \For{$(v, x) \in E \setminus E^{neg}$\label{line:neg_edges_set}}{
+	\If{$D[v] + w(v, x) < D[x]$}{
+	  $D[x] \gets D[v] + w(v, x)$\;
+	  $P[x] \gets v$\;
+	  \lIf{$x \notin Q$}{
+	    add $x$ to $Q$
+	  }
+	}
+      }
+    }
+    \BlankLine
+    \tcp{Bellman-Ford Phase}
+    \While{$S$ is not empty}{
+      $v \gets S.\texttt{pop}()$\;
+      \For{$(v, x) \in E$}{ 
+	\If{$D[v] + w(v, x) < D[x]$}{
+	  $D[x] \gets D[v] + w(v, x)$\;
+	  $P[x] \gets v$\;
+	  \lIf{$x \notin Q$}{
+	    add $x$ to $Q$
+	  }
+	}
+      }
+    }
+    \BlankLine
+    \tcp{Correct Distances}
+    \If{$Q$ is empty}{
+      \KwRet{$D$}\;
+    }
+
+    \BlankLine
+    \tcp{Check for Acyclicity of SPT}
+    \If{last check is $\Th{n}$ edge-relaxations ago \textbf{or} this is iteration $i > n^-$}{
+      \If{$P$ is not acyclic\label{line:acyclicity_check}}{ 	  
+	\KwRet{\negcycle}\;
+      }
+    }
+  }
+\end{algorithm}
+
+\bigskip
+
+Although \cref{thm:det_pot_computation} is a neat result that shows a more broad way of utilizing our engineered dynamic consistency checks, it is probably of not much practical use in this exact context.
+Common methods for potential computation in a practical context include the method of running one \algbf iteration as done so in \algjs (see \cref{sec:preliminaries}) or more recent methods such as \algen~\cite{NegSSSPNearLinear,NegSSSPNowFaster} that alternate between \algbf and \algdk (see \cref{algo:elimneg}).
+$E^{neg}$ in \cref{line:neg_edges_set} refers to the set of edges with negative weight with respect to $w$.
+Similar to \algjs's method, we start with an additional vertex $s$ that has a zero-weighted edge to every other node in the graph and compute the shortest path tree $\spt(s)$ that by \cref{lem:shortest_paths_are_feasible} is a feasible potential function.
+
+As a personal addition, we also include the amortized acyclicity check used in the SPFA heuristic of \algbf to prevent an endless loop.
+Here, we interpret $P[v] = u$ as an edge $(u,v)$ in a tentative shortest path tree (or no edge if $P[v] = \textsc{Null}$): if this ever creates a cycle, this must correspond to a negative cycle in the original graph.
+We call this subgraph the $P$-induced subgraph.
+Again, this checks runs in time $\Oh{n}$~\cite{toposort} since the tentative shortest path tree has $\Oh{n}$ edges.
+
+Although \cite{NegSSSPNearLinear} assumes constant degree for all nodes, \ie $m = \Th{n}$, in their runtime proof, we can upper bound their runtime for general graphs.
+\begin{lemma}[Runtime \algen]\label{lem:runtime_elimneg}
+  \algen correctly returns $\spt(s)$ or \negcycle in time \[
+    \Oh{n^- \cdot (m + n\log n)}.
+  \]
+\end{lemma}
+\begin{proof}
+  We only show general runtime and correctness of the additional negative cycle check as correctness of the original algorithm is done in~\cite{NegSSSPNearLinear}.
+  The original authors also prove an upper bound of \[
+    \Oh{\log n \cdot \left(n + \sum_{v \in V}\eta(v)\right)}
+    \] where \[
+      \eta(v) \Def \begin{cases}
+	\infty & \text{, if $d(s,v) = -\infty$} \\
+	\min\setc{\abs{E^{neg} \cap P}}{\text{$P$ is a shortest \path{s}{v} in $G$}} & \text{otherwise,}
+      \end{cases}
+    \] \ie the minimum number of negative edges on any shortest \path{s}{v}.
+
+    We can mostly disregard their original analysis and only focus on \cite[Lemma~A.3]{NegSSSPNearLinear} which states that \qq{after iteration $i$ of the \texttt{Dijkstra Phase}, $D[v] = d(s,v)$ for every $v$ where $\eta(v) \leq i$} if no negative cycle is present in the graph (otherwise $D[v] \leq d(s,v)$).
+    Then, $v$ can not be added again to $Q$ in the \texttt{Bellman-Ford Phase} as the minimum distance has been found.
+    Thus, the runtime of the algorithm for general graphs is upper bounded by the number of iterations times the runtime of both phases combined.
+    The \texttt{Dijkstra Phase} trivially runs in $\Oh{m + n\log n}$ and the \texttt{Bellman-Ford Phase} in time $\Oh{m + n}$ as we only iterate over each node and its neighbors at most once.
+    Again, by \cite[Lemma~A.3]{NegSSSPNearLinear} it follows that the total runtime is therefore upper bounded by \[
+      \Oh{(m + n\log n) \cdot \max_{v \in V}\eta(v)} = \Oh{n^- \cdot (m + n\log n)},
+    \] since after $\max_{v \in V}\eta(v)$ iterations, every node has found its correct shortest path and $Q$ is empty.
+    Also, trivially $\max_{v \in V}\eta(v) \leq n^-$ because if no negative cycles exist, every shortest path is simple and thus only uses every node at most once.
+    The number of negative edges along a shortest path is therefore upper bounded by the number of nodes with incoming negative-weighted edges which is $n^-$.
+
+    In the case where a negative cycle exists, notice that the original algorithm never terminates.
+    Therefore, we must at some point reach iteration $n^- + 1$ in which there is at least one node $v$ with $D[v] < d'(s,v)$ where $d'(s,v)$ is the length of the shortest simple \path{s}{v}.
+    Otherwise, the algorithm would have already terminated and by the original analysis correctly returned a shortest path tree.
+    Then, since $D[v] < d'(s,v)$, the shortest \path{s}{v} must have traversed one node (of a negative cycle) at least twice which implies that the $P$-induced subgraph can not be acyclic.
+    Also by definition, the $P$-induced subgraph (shortest path \qq{tree}) can only be acyclic if a negative cycle is present in the graph.
+    Thus, the additional check is correct and incurs no worse asymptotic runtime due to amortization.
+
+    Lastly, the latest check that would eventually return \negcycle happens in $\Oh{n^-}$ iterations which also does not incur a worse asymptotic runtime.
+\end{proof}
+
+Initial experiments indicated that the proposed method of \cref{thm:det_pot_computation} is by far the worst technique among the discussed three in practice for common graph models.
+Thus, at this time, no further research was conducted on this specific method (or similar bounds on \algjs's method).

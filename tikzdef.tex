@@ -1,0 +1,28 @@
+\tikzset{
+  vertex/.style = {
+    fill=white,
+    draw,
+    inner sep=0,
+    minimum width=1.5em,
+    minimum height=1.5em,
+    circle
+  },
+  edge/.style = {
+    thick,
+    draw,
+    ->
+  },
+  broken/.style = {
+    DarkRed
+  },
+  traversed/.style = {
+    GoetheBlue
+  },
+  repaired/.style = {
+    Green
+  }
+}
+
+\def\edge#1#2#3#4#5{
+  \path[edge, #5,] (#1) to node[align=center, sloped] {#3 \\ #4} (#2);
+}
